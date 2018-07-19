@@ -29,8 +29,8 @@ public class CustomORM {
                     "FROM User_Table\n" +
                     "WHERE user_id = ?;";
     private static final String CREATE_TRANSACTION =
-            "INSERT INTO Transaction_Table (user_id, transaction_id, date, amount, external_iban, type)\n" +
-                    "VALUES (?, ?, ?, ?, ?, ?);";
+            "INSERT INTO Transaction_Table (user_id, transaction_id, date, amount, description, external_iban, type)\n" +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?);";
     private static final String GET_TRANSACTION =
             "SELECT transaction_id, date, amount, external_iban, type\n" +
                     "FROM Transaction_Table\n" +
@@ -44,6 +44,11 @@ public class CustomORM {
     private static final String UPDATE_TRANSACTION_AMOUNT =
             "UPDATE Transaction_Table\n" +
                     "SET amount = ?\n" +
+                    "WHERE user_id = ?\n" +
+                    "AND transaction_id = ?;";
+    private static final String UPDATE_TRANSACTION_DESCRIPTION =
+            "UPDATE Transaction_Table\n" +
+                    "SET description = ?\n" +
                     "WHERE user_id = ?\n" +
                     "AND transaction_id = ?;";
     private static final String UPDATE_TRANSACTION_EXTERNAL_IBAN =
@@ -193,7 +198,7 @@ public class CustomORM {
      * @param externalIBAN  The externalIBAN of the to be inserted Transaction.
      * @param type          The type of the to be inserted Transaction.
      */
-    public void createTransaction(int userID, long transactionID, String date, float amount, String externalIBAN,
+    public void createTransaction(int userID, long transactionID, String date, float amount, String description, String externalIBAN,
                                   String type) {
         try {
             PreparedStatement statement = connection.prepareStatement(CREATE_TRANSACTION);
@@ -201,8 +206,9 @@ public class CustomORM {
             statement.setLong(2, transactionID);
             statement.setString(3, date);
             statement.setFloat(4, amount);
-            statement.setString(5, externalIBAN);
-            statement.setString(6, type);
+            statement.setString(5, description);
+            statement.setString(6, externalIBAN);
+            statement.setString(7, type);
             statement.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();
@@ -226,9 +232,10 @@ public class CustomORM {
             if (resultSet.next()) {
                 String date = resultSet.getString(2);
                 float amount = resultSet.getFloat(3);
-                String externalIBAN = resultSet.getString(4);
-                String type = resultSet.getString(5);
-                transaction = new Transaction(transactionID, date, amount, externalIBAN, type);
+                String description = resultSet.getString(4);
+                String externalIBAN = resultSet.getString(5);
+                String type = resultSet.getString(6);
+                transaction = new Transaction(transactionID, date, amount, description, externalIBAN, type);
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -266,6 +273,25 @@ public class CustomORM {
         try {
             PreparedStatement statement = connection.prepareStatement(UPDATE_TRANSACTION_AMOUNT);
             statement.setFloat(1, amount);
+            statement.setInt(2, userID);
+            statement.setLong(3, transactionID);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Method used to change the description of a Transaction in the database.
+     *
+     * @param description        The new description of the Transaction.
+     * @param userID        The id of the user whose Transaction with transactionID will be updated.
+     * @param transactionID The id of the to be updated Transaction.
+     */
+    public void updateTransactionDescription(String description, int userID, long transactionID) {
+        try {
+            PreparedStatement statement = connection.prepareStatement(UPDATE_TRANSACTION_AMOUNT);
+            statement.setString(1, description);
             statement.setInt(2, userID);
             statement.setLong(3, transactionID);
             statement.executeUpdate();
@@ -349,9 +375,10 @@ public class CustomORM {
                 long transactionID = resultSet.getLong(1);
                 String date = resultSet.getString(2);
                 float amount = resultSet.getFloat(3);
-                String externalIBAN = resultSet.getString(4);
-                String type = resultSet.getString(5);
-                transactions.add(new Transaction(transactionID, date, amount, externalIBAN, type));
+                String description = resultSet.getString(4);
+                String externalIBAN = resultSet.getString(5);
+                String type = resultSet.getString(6);
+                transactions.add(new Transaction(transactionID, date, amount, description, externalIBAN, type));
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -382,9 +409,10 @@ public class CustomORM {
                 long transactionID = resultSet.getLong(1);
                 String date = resultSet.getString(2);
                 float amount = resultSet.getFloat(3);
-                String externalIBAN = resultSet.getString(4);
-                String type = resultSet.getString(5);
-                transactions.add(new Transaction(transactionID, date, amount, externalIBAN, type));
+                String description = resultSet.getString(4);
+                String externalIBAN = resultSet.getString(5);
+                String type = resultSet.getString(6);
+                transactions.add(new Transaction(transactionID, date, amount, description, externalIBAN, type));
             }
         } catch (SQLException e) {
             e.printStackTrace();

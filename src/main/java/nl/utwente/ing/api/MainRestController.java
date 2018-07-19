@@ -107,7 +107,7 @@ public class MainRestController {
     public ResponseEntity postTransaction(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
                                           @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID,
                                           @RequestBody Transaction t) {
-        if (t == null || t.getDate() == null || t.getAmount() == 0 || t.getExternalIBAN() == null || t.getType() == null) {
+        if (t == null || t.getDate() == null || t.getAmount() == 0 || t.getDescription() == null || t.getExternalIBAN() == null || t.getType() == null) {
             return ResponseEntity.status(405).body("Invalid input given");
         }
         if (!t.getType().equals("deposit") && !t.getType().equals("withdrawal")) {
@@ -117,10 +117,10 @@ public class MainRestController {
             String sessionID = this.getSessionID(pSessionID, hSessionID);
             Transaction transaction;
             if (t.getCategory() != null) {
-                transaction = model.postTransaction(sessionID, t.getDate(), t.getAmount(), t.getExternalIBAN(),
+                transaction = model.postTransaction(sessionID, t.getDate(), t.getAmount(), t.getDescription(), t.getExternalIBAN(),
                         t.getType(), t.getCategory().getID());
             } else {
-                transaction = model.postTransaction(sessionID, t.getDate(), t.getAmount(), t.getExternalIBAN(),
+                transaction = model.postTransaction(sessionID, t.getDate(), t.getAmount(), t.getDescription(), t.getExternalIBAN(),
                         t.getType(), 0);
             }
             return ResponseEntity.status(201).body(transaction);
@@ -185,10 +185,10 @@ public class MainRestController {
             Transaction transaction;
             if (t.getCategory() != null) {
                 transaction = model.putTransaction(sessionID, transactionIDLong, t.getDate(), t.getAmount(),
-                        t.getExternalIBAN(), t.getType(), t.getCategory().getID());
+                        t.getDescription(), t.getExternalIBAN(), t.getType(), t.getCategory().getID());
             } else {
                 transaction = model.putTransaction(sessionID, transactionIDLong, t.getDate(), t.getAmount(),
-                        t.getExternalIBAN(), t.getType(), 0);
+                        t.getDescription(), t.getExternalIBAN(), t.getType(), 0);
             }
             return ResponseEntity.status(200).body(transaction);
         } catch (InvalidSessionIDException e) {
