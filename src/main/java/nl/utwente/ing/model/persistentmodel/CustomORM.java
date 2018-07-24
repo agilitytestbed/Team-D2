@@ -32,7 +32,7 @@ public class CustomORM {
             "INSERT INTO Transaction_Table (user_id, transaction_id, date, amount, description, external_iban, type)\n" +
                     "VALUES (?, ?, ?, ?, ?, ?, ?);";
     private static final String GET_TRANSACTION =
-            "SELECT transaction_id, date, amount, external_iban, type\n" +
+            "SELECT transaction_id, date, amount, description, external_iban, type\n" +
                     "FROM Transaction_Table\n" +
                     "WHERE user_id = ?\n" +
                     "AND transaction_id = ?;";
@@ -66,13 +66,13 @@ public class CustomORM {
                     "WHERE user_id = ?\n" +
                     "AND transaction_id = ?;\n";
     private static final String GET_TRANSACTIONS =
-            "SELECT transaction_id, date, amount, external_iban, type\n" +
+            "SELECT transaction_id, date, amount, description, external_iban, type\n" +
                     "FROM Transaction_Table\n" +
                     "WHERE user_id = ?\n" +
                     "LIMIT ?\n" +
                     "OFFSET ?;";
     private static final String GET_TRANSACTIONS_BY_CATEGORY =
-            "SELECT t.transaction_id, t.date, t.amount, t.external_iban, t.type\n" +
+            "SELECT t.transaction_id, t.date, t.amount, t.description, t.external_iban, t.type\n" +
                     "FROM Transaction_Table t, Category_Table c, Transaction_Category tc\n" +
                     "WHERE t.transaction_id = tc.transaction_id\n" +
                     "AND tc.category_id = c.category_id\n" +
@@ -290,7 +290,7 @@ public class CustomORM {
      */
     public void updateTransactionDescription(String description, int userID, long transactionID) {
         try {
-            PreparedStatement statement = connection.prepareStatement(UPDATE_TRANSACTION_AMOUNT);
+            PreparedStatement statement = connection.prepareStatement(UPDATE_TRANSACTION_DESCRIPTION);
             statement.setString(1, description);
             statement.setInt(2, userID);
             statement.setLong(3, transactionID);
