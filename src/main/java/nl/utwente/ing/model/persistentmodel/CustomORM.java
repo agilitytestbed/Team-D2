@@ -1,6 +1,7 @@
 package nl.utwente.ing.model.persistentmodel;
 
 import nl.utwente.ing.model.bean.Category;
+import nl.utwente.ing.model.bean.CategoryRule;
 import nl.utwente.ing.model.bean.Transaction;
 
 import java.sql.Connection;
@@ -691,4 +692,21 @@ public class CustomORM {
         return userID;
     }
 
+    public ArrayList<CategoryRule> getCategoryRules(int userID, int limit, int offset) {
+        return null;
+    }
+
+    public CategoryRule getCategoryRule(int userID, long categoryRuleID) {
+        return null;
+    }
+
+    public void increaseHighestCategoryRuleID(int userID) {
+    }
+
+    public long getHighestCategoryRuleID() {
+        return 0;
+    }
+
+    public void createCategoryRule(int userID, long categoryRuleID, String description, String iBan, String type, boolean applyOnHistory) {
+    }
 }

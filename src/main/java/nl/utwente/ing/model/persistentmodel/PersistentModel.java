@@ -4,6 +4,7 @@ import nl.utwente.ing.exception.InvalidSessionIDException;
 import nl.utwente.ing.exception.ResourceNotFoundException;
 import nl.utwente.ing.model.Model;
 import nl.utwente.ing.model.bean.Category;
+import nl.utwente.ing.model.bean.CategoryRule;
 import nl.utwente.ing.model.bean.Session;
 import nl.utwente.ing.model.bean.Transaction;
 
@@ -298,6 +299,42 @@ public class PersistentModel implements Model {
         } else {
             throw new ResourceNotFoundException();
         }
+    }
+
+    public ArrayList<CategoryRule> getCategoryRules(String sessionID, int limit, int offset) throws InvalidSessionIDException {
+        int userID = this.getUserID(sessionID);
+        ArrayList<CategoryRule> categoryRules = customORM.getCategoryRules(userID, limit, offset);
+        return categoryRules;
+    }
+
+    public CategoryRule postCategoryRule(String sessionID, String description, String iBan, String type, boolean applyOnHistory) throws InvalidSessionIDException, ResourceNotFoundException {
+        int userID = this.getUserID(sessionID);
+        CategoryRule categoryRule = null;
+        try {
+            connection.setAutoCommit(false);
+            customORM.increaseHighestCategoryRuleID(userID);
+            long categoryRuleID = customORM.getHighestCategoryRuleID();
+            connection.commit();
+            connection.setAutoCommit(true);
+            customORM.createCategoryRule(userID, categoryRuleID, description, iBan, type, applyOnHistory);
+            // TODO dingen
+            categoryRule = customORM.getCategoryRule(userID, categoryRuleID);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return categoryRule;
+    }
+
+    public CategoryRule getCategoryRule(String sessionID, Long categoryRuleID) throws InvalidSessionIDException, ResourceNotFoundException {
+        return null;
+    }
+
+    public CategoryRule putCategoryRule(String sessionID, Long categoryID, String description, String iBan, String type, Long categoryRuleID, boolean applyOnHistory) throws InvalidSessionIDException, ResourceNotFoundException {
+        return null;
+    }
+
+    public void deleteCategoryRule(String sessionID, long categoryRuleID) throws InvalidSessionIDException, ResourceNotFoundException {
+
     }
 
     /**

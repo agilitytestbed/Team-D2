@@ -3,6 +3,7 @@ package nl.utwente.ing.model;
 import nl.utwente.ing.exception.InvalidSessionIDException;
 import nl.utwente.ing.exception.ResourceNotFoundException;
 import nl.utwente.ing.model.bean.Category;
+import nl.utwente.ing.model.bean.CategoryRule;
 import nl.utwente.ing.model.bean.Session;
 import nl.utwente.ing.model.bean.Transaction;
 
@@ -42,7 +43,7 @@ public interface Model {
      *                     (0 if no Category).
      * @return The Transaction created by this method.
      */
-    Transaction postTransaction(String sessionID, String date, float amount,String description, String externalIBAN, String type,
+    Transaction postTransaction(String sessionID, String date, float amount, String description, String externalIBAN, String type,
                                 long categoryID) throws InvalidSessionIDException, ResourceNotFoundException;
 
     /**
@@ -140,6 +141,20 @@ public interface Model {
      * @param categoryID The categoryID of the Category that will be deleted.
      */
     void deleteCategory(String sessionID, long categoryID) throws InvalidSessionIDException, ResourceNotFoundException;
+
+    ArrayList<CategoryRule> getCategoryRules(String sessionID, int limit, int offset) throws InvalidSessionIDException;
+
+    CategoryRule postCategoryRule(String sessionID, String description, String iBan, String type,
+                                  boolean applyOnHistory) throws InvalidSessionIDException, ResourceNotFoundException;
+
+    CategoryRule getCategoryRule(String sessionID, Long categoryRuleID) throws InvalidSessionIDException,
+            ResourceNotFoundException;
+
+    CategoryRule putCategoryRule(String sessionID, Long categoryID, String description, String iBan, String type,
+                                 Long categoryRuleID, boolean applyOnHistory)
+            throws InvalidSessionIDException, ResourceNotFoundException;
+
+    void deleteCategoryRule(String sessionID, long categoryRuleID) throws InvalidSessionIDException, ResourceNotFoundException;
 
     /**
      * Method used to create and retrieve a new Session.
