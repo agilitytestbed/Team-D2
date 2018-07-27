@@ -1,4 +1,4 @@
-# Agility Testbed - Team-D1
+# Agility Testbed - Team-D2
 
 This repository serves as the version control environment for the Digital Payment Assistant of Team-D2, in the Agility Testbed of ING Honours 2018.
 
