@@ -137,7 +137,7 @@ public class CategoryRule {
      *
      * @return Whether CategoryRule applies on history.
      */
-    public boolean isApplyOnHistory() {
+    public boolean getApplyOnHistory() {
         return applyOnHistory;
     }
 

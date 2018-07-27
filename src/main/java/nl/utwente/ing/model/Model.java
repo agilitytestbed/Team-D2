@@ -142,18 +142,68 @@ public interface Model {
      */
     void deleteCategory(String sessionID, long categoryID) throws InvalidSessionIDException, ResourceNotFoundException;
 
-    ArrayList<CategoryRule> getCategoryRules(String sessionID, int limit, int offset) throws InvalidSessionIDException;
+    /**
+     * Method used to retrieve all the CategoryRules of a certain user.
+     *
+     * @param sessionID The sessionID of the user.
+     * @return A list of all CategoryRules of the user.
+     * @throws InvalidSessionIDException
+     */
+    ArrayList<CategoryRule> getCategoryRules(String sessionID) throws InvalidSessionIDException;
 
-    CategoryRule postCategoryRule(String sessionID, String description, String iBan, String type,
+    /**
+     * Method used to create a CategoryRule for a certain user.
+     *
+     * @param sessionID         The sessionID of the user.
+     * @param description       The description of the to be created CategoryRule.
+     * @param iBan              The Iban of the to be created CategoryRule.
+     * @param type              The type of the to be created CategoryRule.
+     * @param categoryID        The category ID of the to be created CategoryRule.
+     * @param applyOnHistory    Whether the rule should be applied to already existing transactions of the user.
+     * @return  The created categoryRule.
+     * @throws InvalidSessionIDException
+     * @throws ResourceNotFoundException
+     */
+    CategoryRule postCategoryRule(String sessionID, String description, String iBan, String type, long categoryID,
                                   boolean applyOnHistory) throws InvalidSessionIDException, ResourceNotFoundException;
 
+    /**
+     * Method used to retrieve a specific CategoryRule of a user.
+     *
+     * @param sessionID         The sessionID of the user.
+     * @param categoryRuleID    The ID of the CategoryRule.
+     * @return  The CategoryRule with the ID.
+     * @throws InvalidSessionIDException
+     * @throws ResourceNotFoundException
+     */
     CategoryRule getCategoryRule(String sessionID, Long categoryRuleID) throws InvalidSessionIDException,
             ResourceNotFoundException;
 
-    CategoryRule putCategoryRule(String sessionID, Long categoryID, String description, String iBan, String type,
-                                 Long categoryRuleID, boolean applyOnHistory)
+    /**
+     * Method used to update a certain CategoryRule of a certain User.
+     *
+     * @param sessionID         The sessionID of the to be updated CategoryRule.
+     * @param categoryRuleID    The CategoryRule ID of the to be updated CategoryRule.
+     * @param description       The description of the to be updated CategoryRule.
+     * @param iBan              The iban of the to be updated CategoryRule.
+     * @param type              The type of the to be updated CategoryRule.
+     * @param categoryID        The category ID of the to be updated CategoryRule.
+     * @return  The updated CategoryRule.
+     * @throws InvalidSessionIDException
+     * @throws ResourceNotFoundException
+     */
+    CategoryRule putCategoryRule(String sessionID, Long categoryRuleID, String description, String iBan, String type,
+                                 Long categoryID)
             throws InvalidSessionIDException, ResourceNotFoundException;
 
+    /**
+     * Method used to delete a CategoryRule from a specific user.
+     *
+     * @param sessionID         The sessionID of the user.
+     * @param categoryRuleID    The categoryRule ID of the to be deleted CategoryRule.
+     * @throws InvalidSessionIDException
+     * @throws ResourceNotFoundException
+     */
     void deleteCategoryRule(String sessionID, long categoryRuleID) throws InvalidSessionIDException, ResourceNotFoundException;
 
     /**
