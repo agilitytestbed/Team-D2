@@ -446,7 +446,7 @@ public class MainRestController {
         if (c == null || c.getDescription() == null || c.getiBAN() == null || c.getType() == null || c.getCategory_id() <= 0) {
             return ResponseEntity.status(405).body("Invalid input given");
         }
-        if (!c.getType().equals("deposit") && !c.getType().equals("withdrawal")) {
+        if (!c.getType().equals("") && !c.getType().equals("deposit") && !c.getType().equals("withdrawal")) {
             return ResponseEntity.status(405).body("Invalid input given (type should be 'deposit' or 'withdrawal')");
         }
         try {
@@ -457,6 +457,7 @@ public class MainRestController {
         } catch (InvalidSessionIDException e) {
             return ResponseEntity.status(401).body("Session ID is missing or invalid");
         } catch (ResourceNotFoundException e) {
+            e.printStackTrace();
             return ResponseEntity.status(404).body("Resource not found");
         }
     }

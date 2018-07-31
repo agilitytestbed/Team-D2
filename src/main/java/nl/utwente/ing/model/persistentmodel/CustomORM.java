@@ -142,8 +142,8 @@ public class CustomORM {
                     "AND t.user_id = ?\n" +
                     "AND t.transaction_id = ?;";
     private static final String CREATE_NEW_USER =
-            "INSERT INTO User_Table (session_id, highest_transaction_id, highest_category_id)\n" +
-                    "VALUES (?, 0, 0);";
+            "INSERT INTO User_Table (session_id, highest_transaction_id, highest_category_id, highest_category_rule_id)\n" +
+                    "VALUES (?, 0, 0, 0);";
     private static final String GET_USER_ID =
             "SELECT user_id\n" +
                     "FROM User_Table\n" +
@@ -156,14 +156,14 @@ public class CustomORM {
             "SELECT description, iban, type, category_id, apply_on_history\n" +
                     "FROM CategoryRule_Table\n" +
                     "WHERE user_id = ?\n" +
-                    "category_rule_id = ?;";
+                    "AND category_rule_id = ?;";
     private static final String INCREASE_HIGHEST_CATEGORYRULE_ID =
             "UPDATE User_Table\n" +
                     "SET highest_category_rule_id = highest_category_rule_id + 1\n" +
                     "WHERE user_id = ?;";
     private static final String GET_HIGHEST_CATEGORYRULE_ID =
             "SELECT highest_category_rule_id\n" +
-                    "FROM User_table\n" +
+                    "FROM User_Table\n" +
                     "WHERE user_id = ?;";
     private static final String CREATE_CATEGORYRULE =
             "INSERT INTO CategoryRule_Table (user_id, category_rule_id, description, iban, type, category_id, apply_on_history)\n" +
@@ -823,6 +823,11 @@ public class CustomORM {
         return categoryRule;
     }
 
+    /**
+     * Method used to increase the highest ID of CategoryRules by one.
+     *
+     * @param userID    The ID of the user.
+     */
     public void increaseHighestCategoryRuleID(int userID) {
         try {
             PreparedStatement statement = connection.prepareStatement(INCREASE_HIGHEST_CATEGORYRULE_ID);
@@ -833,6 +838,12 @@ public class CustomORM {
         }
     }
 
+    /**
+     * Method used to retrieve the highest ID of CategoryRules.
+     *
+     * @param userID    The ID of the user.
+     * @return  The highest ID of CategoryRules.
+     */
     public long getHighestCategoryRuleID(int userID) {
         long highestCategoryRuleID = -1;
         try {

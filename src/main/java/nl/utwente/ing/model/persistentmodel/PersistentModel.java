@@ -343,13 +343,18 @@ public class PersistentModel implements Model {
         int userID = this.getUserID(sessionID);
         CategoryRule categoryRule = null;
         try {
+            // if category with categoryID doesnt exist, throw resourcenotfoundexception.
+            if (categoryID <= 0 && categoryID > customORM.getHighestCategoryID(userID)) {
+                throw new ResourceNotFoundException();
+            }
             connection.setAutoCommit(false);
             customORM.increaseHighestCategoryRuleID(userID);
             long categoryRuleID = customORM.getHighestCategoryRuleID(userID);
             connection.commit();
             connection.setAutoCommit(true);
             customORM.createCategoryRule(userID, categoryRuleID, description, iBan, type, categoryID, applyOnHistory);
-            if (categoryRule.getApplyOnHistory()) {
+            categoryRule = customORM.getCategoryRule(userID, categoryRuleID);
+            if (applyOnHistory) {
                 ArrayList<Transaction> transactions = customORM.getAllTransactions(userID);
                 for (Transaction t : transactions) {
                     if (transactionMatchesCategoryRule(t, categoryRule)) {
@@ -357,7 +362,6 @@ public class PersistentModel implements Model {
                     }
                 }
             }
-            categoryRule = customORM.getCategoryRule(userID, categoryRuleID);
         } catch (SQLException e) {
             e.printStackTrace();
         }
