@@ -84,19 +84,21 @@ public class PersistentModel implements Model {
             connection.commit();
             connection.setAutoCommit(true);
             customORM.createTransaction(userID, transactionID, date, amount, description, externalIBAN, type);
-            if (categoryID != 0) {
+            transaction = customORM.getTransaction(userID, transactionID);
+            if (categoryID > 0) {
                 this.assignCategoryToTransaction(sessionID, transactionID, categoryID);
             } else {
                 ArrayList<CategoryRule> categoryRules = customORM.getCategoryRules(userID);
-                categoryRules.sort(Comparator.comparing(CategoryRule::getCategory_id));
-                for (int i = categoryRules.size() - 1; i >= 0; i --) {
-                    if (transactionMatchesCategoryRule(transaction, categoryRules.get(i))) {
-                        assignCategoryToTransaction(sessionID, transactionID, categoryRules.get(i).getCategory_id());
-                        break;
+                if (categoryRules.size() > 0) {
+                    categoryRules.sort(Comparator.comparing(CategoryRule::getCategory_id));
+                    for (int i = 0; i < categoryRules.size(); i++) {
+                        if (transactionMatchesCategoryRule(transaction, categoryRules.get(i))) {
+                            assignCategoryToTransaction(sessionID, transactionID, categoryRules.get(i).getCategory_id());
+                            break;
+                        }
                     }
                 }
             }
-            transaction = customORM.getTransaction(userID, transactionID);
             this.populateCategory(userID, transaction);
         } catch (SQLException e) {
             e.printStackTrace();
@@ -148,7 +150,7 @@ public class PersistentModel implements Model {
             if (amount != 0) {
                 customORM.updateTransactionAmount(amount, userID, transactionID);
             }
-            if (description != null && !description.equals("")) {
+            if (description != null) {
                 customORM.updateTransactionDescription(description, userID, transactionID);
             }
             if (externalIBAN != null && !externalIBAN.equals("")) {
@@ -423,16 +425,16 @@ public class PersistentModel implements Model {
         int userID = this.getUserID(sessionID);
         CategoryRule categoryRule = customORM.getCategoryRule(userID, categoryRuleID);
         if (categoryRule != null) {
-            if (description != null && !description.equals("")) {
+            if (description != null) {
                 customORM.updateCategoryRuleDescription(description, userID, categoryRuleID);
             }
-            if (iBan != null && !iBan.equals("")) {
+            if (iBan != null) {
                 customORM.updateCategoryRuleIBAN(iBan, userID, categoryRuleID);
             }
-            if (type != null && !type.equals("")) {
+            if (type != null) {
                 customORM.updateCategoryRuleType(type, userID, categoryRuleID);
             }
-            if (categoryID != null && categoryID >= 0) {
+            if (categoryID != null && categoryID > 0) {
                 customORM.updateCategoryRuleCategory(categoryID, userID, categoryRuleID);
             }
             categoryRule = customORM.getCategoryRule(userID, categoryRuleID);

@@ -504,11 +504,12 @@ public class MainRestController {
                                           @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID,
                                           @PathVariable String categoryRuleID,
                                           @RequestBody CategoryRule c) {
-        if (c == null) {
+
+        if (c == null || c.getDescription() == null || c.getiBAN() == null || c.getType() == null || c.getCategory_id() <= 0) {
             return ResponseEntity.status(405).body("Invalid input given");
         }
-        if (!c.getType().equals("deposit") && !c.getType().equals("withdrawal")) {
-            return ResponseEntity.status(405).body("Invalid input given (type should be 'deposit' or 'withdrawal')");
+        if (!c.getType().equals("deposit") && !c.getType().equals("withdrawal") && !c.getType().equals("")) {
+            return ResponseEntity.status(405).body("Invalid input given (type should be 'deposit' or 'withdrawal' or '')");
         }
         try {
             String sessionID = this.getSessionID(pSessionID, hSessionID);
