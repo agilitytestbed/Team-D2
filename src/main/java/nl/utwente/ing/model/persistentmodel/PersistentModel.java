@@ -4,12 +4,14 @@ import nl.utwente.ing.exception.InvalidSessionIDException;
 import nl.utwente.ing.exception.ResourceNotFoundException;
 import nl.utwente.ing.model.Model;
 import nl.utwente.ing.model.bean.Category;
+import nl.utwente.ing.model.bean.CategoryRule;
 import nl.utwente.ing.model.bean.Session;
 import nl.utwente.ing.model.bean.Transaction;
 
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.UUID;
 
 /**
@@ -63,13 +65,14 @@ public class PersistentModel implements Model {
      * @param sessionID    The sessionID of the user.
      * @param date         The date of the to be created Transaction.
      * @param amount       The amount of the to be created Transaction.
+     * @param description  The description of the to be created Transaction.
      * @param externalIBAN The external IBAN of the to be created Transaction.
      * @param type         The type of the to be created Transaction.
      * @param categoryID   The categoryID of the Category that will be assigned to the to be created Transaction
      *                     (0 if no Category).
      * @return The Transaction created by this method.
      */
-    public Transaction postTransaction(String sessionID, String date, float amount, String externalIBAN, String type,
+    public Transaction postTransaction(String sessionID, String date, float amount, String description, String externalIBAN, String type,
                                        long categoryID)
             throws InvalidSessionIDException, ResourceNotFoundException {
         int userID = this.getUserID(sessionID);
@@ -80,11 +83,22 @@ public class PersistentModel implements Model {
             long transactionID = customORM.getHighestTransactionID(userID);
             connection.commit();
             connection.setAutoCommit(true);
-            customORM.createTransaction(userID, transactionID, date, amount, externalIBAN, type);
-            if (categoryID != 0) {
-                this.assignCategoryToTransaction(sessionID, transactionID, categoryID);
-            }
+            customORM.createTransaction(userID, transactionID, date, amount, description, externalIBAN, type);
             transaction = customORM.getTransaction(userID, transactionID);
+            if (categoryID > 0) {
+                this.assignCategoryToTransaction(sessionID, transactionID, categoryID);
+            } else {
+                ArrayList<CategoryRule> categoryRules = customORM.getCategoryRules(userID);
+                if (categoryRules.size() > 0) {
+                    categoryRules.sort(Comparator.comparing(CategoryRule::getCategory_id));
+                    for (int i = 0; i < categoryRules.size(); i++) {
+                        if (transactionMatchesCategoryRule(transaction, categoryRules.get(i))) {
+                            assignCategoryToTransaction(sessionID, transactionID, categoryRules.get(i).getCategory_id());
+                            break;
+                        }
+                    }
+                }
+            }
             this.populateCategory(userID, transaction);
         } catch (SQLException e) {
             e.printStackTrace();
@@ -125,7 +139,7 @@ public class PersistentModel implements Model {
      * @return The Transaction updated by this method.
      */
     public Transaction putTransaction(String sessionID, long transactionID, String date, float amount,
-                                      String externalIBAN, String type, long categoryID)
+                                      String description, String externalIBAN, String type, long categoryID)
             throws InvalidSessionIDException, ResourceNotFoundException {
         int userID = this.getUserID(sessionID);
         Transaction transaction = customORM.getTransaction(userID, transactionID);
@@ -135,6 +149,9 @@ public class PersistentModel implements Model {
             }
             if (amount != 0) {
                 customORM.updateTransactionAmount(amount, userID, transactionID);
+            }
+            if (description != null) {
+                customORM.updateTransactionDescription(description, userID, transactionID);
             }
             if (externalIBAN != null && !externalIBAN.equals("")) {
                 customORM.updateTransactionExternalIBAN(externalIBAN, userID, transactionID);
@@ -172,7 +189,7 @@ public class PersistentModel implements Model {
     }
 
     /**
-     * Method used to assign a Category to an Transaction.
+     * Method used to assign a Category to a Transaction.
      * Currently, first all other assigned Category objects to Transaction are unassigned.
      *
      * @param sessionID     The sessionID of the user.
@@ -291,6 +308,155 @@ public class PersistentModel implements Model {
         if (category != null) {
             customORM.unlinkCategoryFromAllTransactions(userID, categoryID);
             customORM.deleteCategory(userID, categoryID);
+        } else {
+            throw new ResourceNotFoundException();
+        }
+    }
+
+    /**
+     * Method used to retrieve all the CategoryRules of a certain user.
+     *
+     * @param sessionID The sessionID of the user.
+     * @return A list of all CategoryRules of the user.
+     * @throws InvalidSessionIDException
+     */
+    public ArrayList<CategoryRule> getCategoryRules(String sessionID) throws InvalidSessionIDException {
+        int userID = this.getUserID(sessionID);
+        ArrayList<CategoryRule> categoryRules = customORM.getCategoryRules(userID);
+        return categoryRules;
+    }
+
+    /**
+     * Method used to create a CategoryRule for a certain user.
+     * If the applyOnHistory boolean is true, this will check for all Transactions if the rule should be applied to it.
+     *
+     * @param sessionID         The sessionID of the user.
+     * @param description       The description of the to be created CategoryRule.
+     * @param iBan              The Iban of the to be created CategoryRule.
+     * @param type              The type of the to be created CategoryRule.
+     * @param categoryID        The category ID of the to be created CategoryRule.
+     * @param applyOnHistory    Whether the rule should be applied to already existing transactions of the user.
+     * @return  The created categoryRule.
+     * @throws InvalidSessionIDException
+     * @throws ResourceNotFoundException
+     */
+    public CategoryRule postCategoryRule(String sessionID, String description, String iBan, String type, long categoryID,
+                                         boolean applyOnHistory) throws InvalidSessionIDException, ResourceNotFoundException {
+        int userID = this.getUserID(sessionID);
+        CategoryRule categoryRule = null;
+        try {
+            // if category with categoryID doesnt exist, throw resourcenotfoundexception.
+            if (categoryID <= 0 && categoryID > customORM.getHighestCategoryID(userID)) {
+                throw new ResourceNotFoundException();
+            }
+            connection.setAutoCommit(false);
+            customORM.increaseHighestCategoryRuleID(userID);
+            long categoryRuleID = customORM.getHighestCategoryRuleID(userID);
+            connection.commit();
+            connection.setAutoCommit(true);
+            customORM.createCategoryRule(userID, categoryRuleID, description, iBan, type, categoryID, applyOnHistory);
+            categoryRule = customORM.getCategoryRule(userID, categoryRuleID);
+            if (applyOnHistory) {
+                ArrayList<Transaction> transactions = customORM.getAllTransactions(userID);
+                for (Transaction t : transactions) {
+                    if (transactionMatchesCategoryRule(t, categoryRule)) {
+                        assignCategoryToTransaction(sessionID, t.getID(), categoryRuleID);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return categoryRule;
+    }
+
+    /**
+     * Method used to check if a Transaction belongs to a CategoryRule.
+     *
+     * @param t     The Transaction that is checked.
+     * @param c     The CategoryRule that is checked.
+     * @return  true if the Transaction matches the CategoryRule, false otherwise.
+     */
+    public boolean transactionMatchesCategoryRule(Transaction t, CategoryRule c) {
+        boolean match = false;
+        if (t.getType().contains(c.getType())) {
+            if (t.getDescription().contains(c.getDescription()) && t.getExternalIBAN().contains(c.getiBAN())) {
+                match = true;
+            }
+        }
+        return match;
+    }
+
+    /**
+     * Method used to retrieve a specific CategoryRule of a user.
+     *
+     * @param sessionID         The sessionID of the user.
+     * @param categoryRuleID    The ID of the CategoryRule.
+     * @return  The CategoryRule with the ID.
+     * @throws InvalidSessionIDException
+     * @throws ResourceNotFoundException
+     */
+    public CategoryRule getCategoryRule(String sessionID, Long categoryRuleID) throws InvalidSessionIDException, ResourceNotFoundException {
+        int userID = this.getUserID(sessionID);
+        CategoryRule categoryRule = customORM.getCategoryRule(userID, categoryRuleID);
+        if (categoryRule != null) {
+            return categoryRule;
+        } else {
+            throw new ResourceNotFoundException();
+        }
+    }
+
+    /**
+     * Method used to update a certain CategoryRule of a certain User.
+     *
+     * @param sessionID         The sessionID of the to be updated CategoryRule.
+     * @param categoryRuleID    The CategoryRule ID of the to be updated CategoryRule.
+     * @param description       The description of the to be updated CategoryRule.
+     * @param iBan              The iban of the to be updated CategoryRule.
+     * @param type              The type of the to be updated CategoryRule.
+     * @param categoryID        The category ID of the to be updated CategoryRule.
+     * @return  The updated CategoryRule.
+     * @throws InvalidSessionIDException
+     * @throws ResourceNotFoundException
+     */
+    public CategoryRule putCategoryRule(String sessionID, Long categoryRuleID, String description, String iBan, String type,
+                                        Long categoryID)
+            throws InvalidSessionIDException, ResourceNotFoundException {
+        int userID = this.getUserID(sessionID);
+        CategoryRule categoryRule = customORM.getCategoryRule(userID, categoryRuleID);
+        if (categoryRule != null) {
+            if (description != null) {
+                customORM.updateCategoryRuleDescription(description, userID, categoryRuleID);
+            }
+            if (iBan != null) {
+                customORM.updateCategoryRuleIBAN(iBan, userID, categoryRuleID);
+            }
+            if (type != null) {
+                customORM.updateCategoryRuleType(type, userID, categoryRuleID);
+            }
+            if (categoryID != null && categoryID > 0) {
+                customORM.updateCategoryRuleCategory(categoryID, userID, categoryRuleID);
+            }
+            categoryRule = customORM.getCategoryRule(userID, categoryRuleID);
+        } else {
+            throw new ResourceNotFoundException();
+        }
+        return categoryRule;
+    }
+
+    /**
+     * Method used to delete a CategoryRule from a specific user.
+     *
+     * @param sessionID         The sessionID of the user.
+     * @param categoryRuleID    The categoryRule ID of the to be deleted CategoryRule.
+     * @throws InvalidSessionIDException
+     * @throws ResourceNotFoundException
+     */
+    public void deleteCategoryRule(String sessionID, long categoryRuleID) throws InvalidSessionIDException, ResourceNotFoundException {
+        int userID = this.getUserID(sessionID);
+        CategoryRule categoryRule = customORM.getCategoryRule(userID, categoryRuleID);
+        if (categoryRule != null) {
+            customORM.deleteCategoryRule(userID, categoryRuleID);
         } else {
             throw new ResourceNotFoundException();
         }

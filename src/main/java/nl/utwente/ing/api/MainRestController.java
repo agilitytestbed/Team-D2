@@ -4,6 +4,7 @@ import nl.utwente.ing.exception.InvalidSessionIDException;
 import nl.utwente.ing.exception.ResourceNotFoundException;
 import nl.utwente.ing.model.Model;
 import nl.utwente.ing.model.bean.Category;
+import nl.utwente.ing.model.bean.CategoryRule;
 import nl.utwente.ing.model.bean.Transaction;
 import nl.utwente.ing.model.persistentmodel.PersistentModel;
 import org.springframework.http.ResponseEntity;
@@ -107,7 +108,7 @@ public class MainRestController {
     public ResponseEntity postTransaction(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
                                           @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID,
                                           @RequestBody Transaction t) {
-        if (t == null || t.getDate() == null || t.getAmount() == 0 || t.getExternalIBAN() == null || t.getType() == null) {
+        if (t == null || t.getDate() == null || t.getAmount() == 0 || t.getDescription() == null || t.getExternalIBAN() == null || t.getType() == null) {
             return ResponseEntity.status(405).body("Invalid input given");
         }
         if (!t.getType().equals("deposit") && !t.getType().equals("withdrawal")) {
@@ -117,10 +118,10 @@ public class MainRestController {
             String sessionID = this.getSessionID(pSessionID, hSessionID);
             Transaction transaction;
             if (t.getCategory() != null) {
-                transaction = model.postTransaction(sessionID, t.getDate(), t.getAmount(), t.getExternalIBAN(),
+                transaction = model.postTransaction(sessionID, t.getDate(), t.getAmount(), t.getDescription(), t.getExternalIBAN(),
                         t.getType(), t.getCategory().getID());
             } else {
-                transaction = model.postTransaction(sessionID, t.getDate(), t.getAmount(), t.getExternalIBAN(),
+                transaction = model.postTransaction(sessionID, t.getDate(), t.getAmount(), t.getDescription(), t.getExternalIBAN(),
                         t.getType(), 0);
             }
             return ResponseEntity.status(201).body(transaction);
@@ -185,10 +186,10 @@ public class MainRestController {
             Transaction transaction;
             if (t.getCategory() != null) {
                 transaction = model.putTransaction(sessionID, transactionIDLong, t.getDate(), t.getAmount(),
-                        t.getExternalIBAN(), t.getType(), t.getCategory().getID());
+                        t.getDescription(), t.getExternalIBAN(), t.getType(), t.getCategory().getID());
             } else {
                 transaction = model.putTransaction(sessionID, transactionIDLong, t.getDate(), t.getAmount(),
-                        t.getExternalIBAN(), t.getType(), 0);
+                        t.getDescription(), t.getExternalIBAN(), t.getType(), 0);
             }
             return ResponseEntity.status(200).body(transaction);
         } catch (InvalidSessionIDException e) {
@@ -405,6 +406,147 @@ public class MainRestController {
     @RequestMapping(method = RequestMethod.POST, value = RestControllerConstants.URI_PREFIX + "/sessions")
     public ResponseEntity getSessionID() {
         return ResponseEntity.status(201).body(model.getSession());
+    }
+
+    /**
+     * Method used to retrieve the categoryRules belonging to the user issuing the current request.
+     *
+     * @param pSessionID The sessionID specified in the request parameters.
+     * @param hSessionID The sessionID specified in the HTTP header.
+     * @return A ResponseEntity containing a HTTP status code and either a status message or
+     * an ArrayList of CategoryRules belonging to the user issuing the current request.
+     */
+    @RequestMapping(method = RequestMethod.GET,
+            value = RestControllerConstants.URI_PREFIX + "/categoryRules")
+    public ResponseEntity getCategoryRules(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
+                                           @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID) {
+        try {
+            String sessionID = this.getSessionID(pSessionID, hSessionID);
+            ArrayList<CategoryRule> categoryRules = model.getCategoryRules(sessionID);
+            return ResponseEntity.status(200).body(categoryRules);
+        } catch (InvalidSessionIDException e) {
+            return ResponseEntity.status(401).body("Session ID is missing or invalid");
+        }
+    }
+
+    /**
+     * Method used to create a new CategoryRule for the user issuing the current request.
+     *
+     * @param pSessionID The sessionID specified in the request parameters.
+     * @param hSessionID The sessionID specified in the HTTP header.
+     * @param c          The CategoryRule object as specified in the json HTTP body.
+     * @return A ResponseEntity containing a HTTP status code and either a status message or
+     * the CategoryRule created by using this method.
+     */
+    @RequestMapping(method = RequestMethod.POST,
+            value = RestControllerConstants.URI_PREFIX + "/categoryRules")
+    public ResponseEntity postCategoryRule(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
+                                           @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID,
+                                           @RequestBody CategoryRule c) {
+        if (c == null || c.getDescription() == null || c.getiBAN() == null || c.getType() == null || c.getCategory_id() <= 0) {
+            return ResponseEntity.status(405).body("Invalid input given");
+        }
+        if (!c.getType().equals("") && !c.getType().equals("deposit") && !c.getType().equals("withdrawal")) {
+            return ResponseEntity.status(405).body("Invalid input given (type should be 'deposit' or 'withdrawal')");
+        }
+        try {
+            String sessionID = this.getSessionID(pSessionID, hSessionID);
+            CategoryRule categoryRule = model.postCategoryRule(sessionID, c.getDescription(), c.getiBAN(), c.getType(),
+                    c.getCategory_id(), c.getApplyOnHistory());
+            return ResponseEntity.status(201).body(categoryRule);
+        } catch (InvalidSessionIDException e) {
+            return ResponseEntity.status(401).body("Session ID is missing or invalid");
+        } catch (ResourceNotFoundException e) {
+            e.printStackTrace();
+            return ResponseEntity.status(404).body("Resource not found");
+        }
+    }
+
+    /**
+     * Method used to retrieve a certain CategoryRule belonging to the user issuing the current request.
+     *
+     * @param pSessionID        The sessionID specified in the request parameters.
+     * @param hSessionID        The sessionID specified in the HTTP header.
+     * @param categoryRuleID    The categoryID of the CategoryRule that will be retrieved.
+     * @return A ResponseEntity containing a HTTP status code and either a status message or
+     * the CategoryRule with categoryRuleID belonging to the user issuing the current request.
+     */
+    @RequestMapping(method = RequestMethod.GET,
+            value = RestControllerConstants.URI_PREFIX + "/categoryRules/{categoryRuleID}")
+    public ResponseEntity getCategoryRule(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
+                                          @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID,
+                                          @PathVariable String categoryRuleID) {
+        try {
+            String sessionID = this.getSessionID(pSessionID, hSessionID);
+            long categoryRuleIDLong = Long.parseLong(categoryRuleID);
+            CategoryRule categoryRule = model.getCategoryRule(sessionID, categoryRuleIDLong);
+            return ResponseEntity.status(200).body(categoryRule);
+        } catch (InvalidSessionIDException e) {
+            return ResponseEntity.status(401).body("Session ID is missing or invalid");
+        } catch (ResourceNotFoundException | NumberFormatException e) {
+            return ResponseEntity.status(404).body("Resource not found");
+        }
+    }
+
+    /**
+     * Method used to update a certain CategoryRule belonging to the user issuing the current request.
+     *
+     * @param pSessionID        The sessionID specified in the request parameters.
+     * @param hSessionID        The sessionID specified in the HTTP header.
+     * @param categoryRuleID    The categoryRuleID of the CategoryRule that will be updated.
+     * @param c                 The CategoryRule object as specified in the json HTTP body.
+     * @return A ResponseEntity containing a HTTP status code and either a status message or
+     * the CategoryRule updated using this method.
+     */
+    @RequestMapping(method = RequestMethod.PUT,
+            value = RestControllerConstants.URI_PREFIX + "/categoryRules/{categoryRuleID}")
+    public ResponseEntity putCategoryRule(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
+                                          @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID,
+                                          @PathVariable String categoryRuleID,
+                                          @RequestBody CategoryRule c) {
+
+        if (c == null || c.getDescription() == null || c.getiBAN() == null || c.getType() == null || c.getCategory_id() <= 0) {
+            return ResponseEntity.status(405).body("Invalid input given");
+        }
+        if (!c.getType().equals("deposit") && !c.getType().equals("withdrawal") && !c.getType().equals("")) {
+            return ResponseEntity.status(405).body("Invalid input given (type should be 'deposit' or 'withdrawal' or '')");
+        }
+        try {
+            String sessionID = this.getSessionID(pSessionID, hSessionID);
+            long categoryRuleIDLong = Long.parseLong(categoryRuleID);
+            CategoryRule categoryRule = model.putCategoryRule(sessionID, categoryRuleIDLong, c.getDescription(), c.getiBAN(),
+                    c.getType(), c.getCategory_id());
+            return ResponseEntity.status(200).body(categoryRule);
+        } catch (InvalidSessionIDException e) {
+            return ResponseEntity.status(401).body("Session ID is missing or invalid");
+        } catch (NumberFormatException | ResourceNotFoundException e) {
+            return ResponseEntity.status(404).body("Resource not found");
+        }
+    }
+
+    /**
+     * Method used to remove a certain CategoryRule belonging to the user issuing the current request.
+     *
+     * @param pSessionID        The sessionID specified in the request parameters.
+     * @param hSessionID        The sessionID specified in the HTTP header.
+     * @param categoryRuleID    The categoryRuleID of the CategoryRule that will be deleted.
+     * @return A ResponseEntity containing a HTTP status code and a status message.
+     */
+    @RequestMapping(method = RequestMethod.DELETE,
+            value = RestControllerConstants.URI_PREFIX + "/categoryRules/{categoryRuleID}")
+    public ResponseEntity deleteCategoryRule(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
+                                             @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID,
+                                             @PathVariable String categoryRuleID) {
+        try {
+            String sessionID = this.getSessionID(pSessionID, hSessionID);
+            long categoryRuleIDLong = Long.parseLong(categoryRuleID);
+            model.deleteCategoryRule(sessionID, categoryRuleIDLong);
+            return ResponseEntity.status(204).body("Resource deleted");
+        } catch (InvalidSessionIDException e) {
+            return ResponseEntity.status(401).body("Session ID is missing or invalid");
+        } catch (NumberFormatException | ResourceNotFoundException e) {
+            return ResponseEntity.status(404).body("Resource not found");
+        }
     }
 
 }
