@@ -5,11 +5,14 @@ import nl.utwente.ing.exception.ResourceNotFoundException;
 import nl.utwente.ing.model.Model;
 import nl.utwente.ing.model.bean.Category;
 import nl.utwente.ing.model.bean.CategoryRule;
+import nl.utwente.ing.model.bean.Interval;
 import nl.utwente.ing.model.bean.Transaction;
 import nl.utwente.ing.model.persistentmodel.PersistentModel;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Map;
 
@@ -115,6 +118,13 @@ public class MainRestController {
             return ResponseEntity.status(405).body("Invalid input given (type should be 'deposit' or 'withdrawal')");
         }
         try {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+            dateFormat.setLenient(false);
+            dateFormat.parse(t.getDate().trim());
+        } catch (ParseException e) {
+            return ResponseEntity.status(405).body("Invalid input given (date format should be: \"yyyy-MM-dd'T'HH:mm:ss.SSSZ\")");
+        }
+        try {
             String sessionID = this.getSessionID(pSessionID, hSessionID);
             Transaction transaction;
             if (t.getCategory() != null) {
@@ -179,6 +189,15 @@ public class MainRestController {
         }
         if (!t.getType().equals("deposit") && !t.getType().equals("withdrawal")) {
             return ResponseEntity.status(405).body("Invalid input given (type should be 'deposit' or 'withdrawal')");
+        }
+        if (!t.getDate().equals("") && !t.getDate().equals(null)) {
+            try {
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+                dateFormat.setLenient(false);
+                dateFormat.parse(t.getDate().trim());
+            } catch (ParseException e) {
+                return ResponseEntity.status(405).body("Invalid input given (date format should be: \"yyyy-MM-dd'T'HH:mm:ss.SSSZ\")");
+            }
         }
         try {
             String sessionID = this.getSessionID(pSessionID, hSessionID);
@@ -548,5 +567,45 @@ public class MainRestController {
             return ResponseEntity.status(404).body("Resource not found");
         }
     }
+
+    /**
+     * Method used to retrieve balance history over a certain period of time.
+     *
+     * @param pSessionID        The sessionID specified in the request parameters.
+     * @param hSessionID        The sessionID specified in the HTTP header.
+     * @param intervalTime      The type of the to be retrieved intervals.
+     * @param intervals         The number of the to be retrieved intervals.
+     * @return A ResponseEntity containing a HTTP status code and either a status message or
+     *         the balance history over the specified period.
+     */
+    @RequestMapping(method = RequestMethod.GET,
+            value = RestControllerConstants.URI_PREFIX + "/balance/history")
+    public ResponseEntity getBalanceHistory(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
+                                          @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID,
+                                          @RequestParam(value = "interval", defaultValue = "month") String intervalTime,
+                                          @RequestParam(value = "intervals", defaultValue = "24") String intervals) {
+        int intervalsNumber = 24;
+        try {
+            intervalsNumber = Integer.parseInt(intervals);
+            if (intervalsNumber < 1 || intervalsNumber > 100) {
+                intervalsNumber = 24;
+            }
+        } catch (NumberFormatException e) {
+            // Do nothing
+        }
+
+        if (!(intervalTime.equals("hour") || intervalTime.equals("day") || intervalTime.equals("week") || intervalTime.equals("month") || intervalTime.equals("year"))) {
+            return ResponseEntity.status(405).body("Invalid input given");
+        }
+
+        try {
+            String sessionID = this.getSessionID(pSessionID, hSessionID);
+            ArrayList<Interval> intervalsList = model.getIntervals(sessionID, intervalsNumber, intervalTime);
+            return ResponseEntity.status(200).body(intervalsList);
+        } catch (InvalidSessionIDException e) {
+            return ResponseEntity.status(401).body("Session ID is missing or invalid");
+        }
+    }
+
 
 }

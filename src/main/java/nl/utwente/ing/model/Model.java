@@ -2,10 +2,7 @@ package nl.utwente.ing.model;
 
 import nl.utwente.ing.exception.InvalidSessionIDException;
 import nl.utwente.ing.exception.ResourceNotFoundException;
-import nl.utwente.ing.model.bean.Category;
-import nl.utwente.ing.model.bean.CategoryRule;
-import nl.utwente.ing.model.bean.Session;
-import nl.utwente.ing.model.bean.Transaction;
+import nl.utwente.ing.model.bean.*;
 
 import java.util.ArrayList;
 
@@ -205,6 +202,17 @@ public interface Model {
      * @throws ResourceNotFoundException
      */
     void deleteCategoryRule(String sessionID, long categoryRuleID) throws InvalidSessionIDException, ResourceNotFoundException;
+
+    /**
+     * Method used to retrieve balance history over the specified intervals.
+     *
+     * @param sessionID         The sessionID of the to be retrieved intervals.
+     * @param intervalsNumber   The number of intervals to be retrieved.
+     * @param intervalTime      The type of the to be retrieved intervals.
+     * @return  The specified intervals.
+     * @throws InvalidSessionIDException
+     */
+    ArrayList<Interval> getIntervals(String sessionID, int intervalsNumber, String intervalTime) throws InvalidSessionIDException;
 
     /**
      * Method used to create and retrieve a new Session.

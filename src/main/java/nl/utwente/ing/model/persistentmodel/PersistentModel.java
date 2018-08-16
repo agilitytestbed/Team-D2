@@ -3,16 +3,14 @@ package nl.utwente.ing.model.persistentmodel;
 import nl.utwente.ing.exception.InvalidSessionIDException;
 import nl.utwente.ing.exception.ResourceNotFoundException;
 import nl.utwente.ing.model.Model;
-import nl.utwente.ing.model.bean.Category;
-import nl.utwente.ing.model.bean.CategoryRule;
-import nl.utwente.ing.model.bean.Session;
-import nl.utwente.ing.model.bean.Transaction;
+import nl.utwente.ing.model.bean.*;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.UUID;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.util.*;
 
 /**
  * The PersistentModel class, an implementation of the Model interface.
@@ -99,11 +97,59 @@ public class PersistentModel implements Model {
                     }
                 }
             }
+            setBalanceHistoryPoint(date, amount, type, userID);
             this.populateCategory(userID, transaction);
         } catch (SQLException e) {
             e.printStackTrace();
         }
         return transaction;
+    }
+
+    /**
+     * Method used to create a balance history point in the database.
+     *
+     * @param date      The date of the transaction.
+     * @param amount    The amount of the transaction.
+     * @param type      The type of the transaction (deposit or withdrawal).
+     * @param userID    The ID of the specified user.
+     */
+    private void setBalanceHistoryPoint(String date, float amount, String type, int userID) {
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+        dateFormat.setLenient(false);
+        long timestampMillis = -1;
+        try {
+            timestampMillis = dateFormat.parse(date.trim()).getTime();
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+        float volume = amount;
+        if (type.equals("withdrawal")) {
+            amount = -amount;
+        }
+        float open = customORM.getPreviousBalanceHistoryPointClose(userID, timestampMillis);
+        float close = open + amount;
+        BalanceHistoryPoint b = new BalanceHistoryPoint(open, close, volume, timestampMillis);
+        customORM.createBalanceHistoryPoint(userID, b);
+        fixFutureBalanceHistoryPoints(userID, timestampMillis, amount);
+    }
+
+    /**
+     * Method used to update all balance history points that are already in the database, but record history after the
+     * currently added balance history point.
+     *
+     * @param userID            The ID of the specified user.
+     * @param timestampMillis   The time stamp in milliseconds of the current transaction.
+     * @param amount            The amount of the current transaction.
+     */
+    private void fixFutureBalanceHistoryPoints(int userID, long timestampMillis, float amount) {
+        ArrayList<BalanceHistoryPoint> futureBalanceHistoryPoints = customORM.getFutureBalanceHistoryPoints(userID, timestampMillis);
+        if (futureBalanceHistoryPoints.size() > 0) {
+            for (BalanceHistoryPoint b : futureBalanceHistoryPoints) {
+                b.setOpen(b.getOpen() + amount);
+                b.setClose(b.getClose() + amount);
+                customORM.updateBalanceHistoryPoint(userID, b);
+            }
+        }
     }
 
     /**
@@ -330,13 +376,13 @@ public class PersistentModel implements Model {
      * Method used to create a CategoryRule for a certain user.
      * If the applyOnHistory boolean is true, this will check for all Transactions if the rule should be applied to it.
      *
-     * @param sessionID         The sessionID of the user.
-     * @param description       The description of the to be created CategoryRule.
-     * @param iBan              The Iban of the to be created CategoryRule.
-     * @param type              The type of the to be created CategoryRule.
-     * @param categoryID        The category ID of the to be created CategoryRule.
-     * @param applyOnHistory    Whether the rule should be applied to already existing transactions of the user.
-     * @return  The created categoryRule.
+     * @param sessionID      The sessionID of the user.
+     * @param description    The description of the to be created CategoryRule.
+     * @param iBan           The Iban of the to be created CategoryRule.
+     * @param type           The type of the to be created CategoryRule.
+     * @param categoryID     The category ID of the to be created CategoryRule.
+     * @param applyOnHistory Whether the rule should be applied to already existing transactions of the user.
+     * @return The created categoryRule.
      * @throws InvalidSessionIDException
      * @throws ResourceNotFoundException
      */
@@ -373,9 +419,9 @@ public class PersistentModel implements Model {
     /**
      * Method used to check if a Transaction belongs to a CategoryRule.
      *
-     * @param t     The Transaction that is checked.
-     * @param c     The CategoryRule that is checked.
-     * @return  true if the Transaction matches the CategoryRule, false otherwise.
+     * @param t The Transaction that is checked.
+     * @param c The CategoryRule that is checked.
+     * @return true if the Transaction matches the CategoryRule, false otherwise.
      */
     public boolean transactionMatchesCategoryRule(Transaction t, CategoryRule c) {
         boolean match = false;
@@ -390,9 +436,9 @@ public class PersistentModel implements Model {
     /**
      * Method used to retrieve a specific CategoryRule of a user.
      *
-     * @param sessionID         The sessionID of the user.
-     * @param categoryRuleID    The ID of the CategoryRule.
-     * @return  The CategoryRule with the ID.
+     * @param sessionID      The sessionID of the user.
+     * @param categoryRuleID The ID of the CategoryRule.
+     * @return The CategoryRule with the ID.
      * @throws InvalidSessionIDException
      * @throws ResourceNotFoundException
      */
@@ -409,13 +455,13 @@ public class PersistentModel implements Model {
     /**
      * Method used to update a certain CategoryRule of a certain User.
      *
-     * @param sessionID         The sessionID of the to be updated CategoryRule.
-     * @param categoryRuleID    The CategoryRule ID of the to be updated CategoryRule.
-     * @param description       The description of the to be updated CategoryRule.
-     * @param iBan              The iban of the to be updated CategoryRule.
-     * @param type              The type of the to be updated CategoryRule.
-     * @param categoryID        The category ID of the to be updated CategoryRule.
-     * @return  The updated CategoryRule.
+     * @param sessionID      The sessionID of the to be updated CategoryRule.
+     * @param categoryRuleID The CategoryRule ID of the to be updated CategoryRule.
+     * @param description    The description of the to be updated CategoryRule.
+     * @param iBan           The iban of the to be updated CategoryRule.
+     * @param type           The type of the to be updated CategoryRule.
+     * @param categoryID     The category ID of the to be updated CategoryRule.
+     * @return The updated CategoryRule.
      * @throws InvalidSessionIDException
      * @throws ResourceNotFoundException
      */
@@ -447,8 +493,8 @@ public class PersistentModel implements Model {
     /**
      * Method used to delete a CategoryRule from a specific user.
      *
-     * @param sessionID         The sessionID of the user.
-     * @param categoryRuleID    The categoryRule ID of the to be deleted CategoryRule.
+     * @param sessionID      The sessionID of the user.
+     * @param categoryRuleID The categoryRule ID of the to be deleted CategoryRule.
      * @throws InvalidSessionIDException
      * @throws ResourceNotFoundException
      */
@@ -512,4 +558,117 @@ public class PersistentModel implements Model {
         return userID;
     }
 
+    /**
+     * Method used to retrieve balance history over the specified intervals.
+     *
+     * @param sessionID       The sessionID of the to be retrieved intervals.
+     * @param intervalsNumber The number of intervals to be retrieved.
+     * @param intervalTime    The type of the to be retrieved intervals.
+     * @return The specified intervals.
+     * @throws InvalidSessionIDException
+     */
+    public ArrayList<Interval> getIntervals(String sessionID, int intervalsNumber, String intervalTime) throws InvalidSessionIDException {
+        int userID = getUserID(sessionID);
+        ArrayList<Interval> intervals = new ArrayList<>();
+        Calendar c = new GregorianCalendar();
+        c.setTimeInMillis(Instant.now().getEpochSecond());
+        c.set(Calendar.MINUTE, 0);
+        c.set(Calendar.SECOND, 0);
+
+        // interval from 11 to 12 o'clock, then start is 11, end is 12. Same with other intervalTimes.
+        if (intervalTime.equals("hour")) {
+            c.add(Calendar.HOUR_OF_DAY, 1);
+            for (int i = 0; i < intervalsNumber; i++) {
+                long endIntervalTimeMillis = c.getTimeInMillis();
+                c.add(Calendar.HOUR_OF_DAY, -1);
+                long startIntervalTimeMillis = c.getTimeInMillis();
+                intervals.add(calculateInterval(userID, startIntervalTimeMillis, endIntervalTimeMillis));
+            }
+
+        } else if (intervalTime.equals("day")) {
+            c.set(Calendar.HOUR, 0);
+            c.add(Calendar.DAY_OF_YEAR, 1);
+            for (int i = 0; i < intervalsNumber; i++) {
+                long endIntervalTimeMillis = c.getTimeInMillis();
+                c.add(Calendar.DAY_OF_YEAR, -1);
+                long startIntervalTimeMillis = c.getTimeInMillis();
+                intervals.add(calculateInterval(userID, startIntervalTimeMillis, endIntervalTimeMillis));
+            }
+
+        } else if (intervalTime.equals("week")) {
+            c.set(Calendar.HOUR, 0);
+            c.set(Calendar.DAY_OF_WEEK, 0);
+            c.add(Calendar.WEEK_OF_YEAR, 1);
+            for (int i = 0; i < intervalsNumber; i++) {
+                long endIntervalTimeMillis = c.getTimeInMillis();
+                c.add(Calendar.WEEK_OF_YEAR, -1);
+                long startIntervalTimeMillis = c.getTimeInMillis();
+                intervals.add(calculateInterval(userID, startIntervalTimeMillis, endIntervalTimeMillis));
+            }
+
+        } else if (intervalTime.equals("month")) {
+            c.set(Calendar.HOUR, 0);
+            c.set(Calendar.DAY_OF_MONTH, 0);
+            c.add(Calendar.MONTH, 1);
+            for (int i = 0; i < intervalsNumber; i++) {
+                long endIntervalTimeMillis = c.getTimeInMillis();
+                c.add(Calendar.MONTH, -1);
+                long startIntervalTimeMillis = c.getTimeInMillis();
+                intervals.add(calculateInterval(userID, startIntervalTimeMillis, endIntervalTimeMillis));
+            }
+
+        } else if (intervalTime.equals("year")) {
+            c.set(Calendar.HOUR, 0);
+            c.set(Calendar.DAY_OF_YEAR, 0);
+            c.set(Calendar.MONTH, 0);
+            c.add(Calendar.YEAR, 1);
+            for (int i = 0; i < intervalsNumber; i++) {
+                long endIntervalTimeMillis = c.getTimeInMillis();
+                c.add(Calendar.YEAR, -1);
+                long startIntervalTimeMillis = c.getTimeInMillis();
+                intervals.add(calculateInterval(userID, startIntervalTimeMillis, endIntervalTimeMillis));
+            }
+        }
+
+        return intervals;
+    }
+
+    /**
+     * Method used to calculate values for an interval between start en end time.
+     *
+     * @param userID                    The ID of the specified user.
+     * @param startIntervalTimeMillis   The start time of the interval.
+     * @param endIntervalTimeMillis     The end time of the interval.
+     * @return  The balancehistory between start and end time, in an interval object.
+     */
+    public Interval calculateInterval(int userID, long startIntervalTimeMillis, long endIntervalTimeMillis) {
+        ArrayList<BalanceHistoryPoint> balanceHistoryPoints = customORM.getBalanceHistoryPointsInRange(userID, startIntervalTimeMillis, endIntervalTimeMillis);
+        float open;
+        float close;
+        float high = 0;
+        float low = 0;
+        float volume = 0;
+        long timeStampSeconds = startIntervalTimeMillis / 1000;
+        if (balanceHistoryPoints.size() > 0) {
+            open = balanceHistoryPoints.get(0).getOpen();
+            close = balanceHistoryPoints.get(balanceHistoryPoints.size() - 1).getClose();
+            high = open;
+            low = open;
+            for (BalanceHistoryPoint b : balanceHistoryPoints) {
+                // Assuming that the arraylist is sorted by time_stamp_millis ASCENDING by SQL statement retrieving the data.
+                if (b.getClose() > high) {
+                    high = b.getClose();
+                }
+                if (b.getClose() < low) {
+                    low = b.getClose();
+                }
+                volume += b.getVolume();
+            }
+        } else {
+            close = customORM.getPreviousBalanceHistoryPointClose(userID, startIntervalTimeMillis);
+            open = close;
+        }
+        Interval interval = new Interval(open, close, high, low, volume, timeStampSeconds);
+        return interval;
+    }
 }
