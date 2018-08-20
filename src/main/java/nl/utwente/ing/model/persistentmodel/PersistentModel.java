@@ -571,7 +571,8 @@ public class PersistentModel implements Model {
         int userID = getUserID(sessionID);
         ArrayList<Interval> intervals = new ArrayList<>();
         Calendar c = new GregorianCalendar();
-        c.setTimeInMillis(Instant.now().getEpochSecond());
+        c.setTimeInMillis(Instant.now().getEpochSecond() * 1000);
+        c.set(Calendar.MILLISECOND, 0);
         c.set(Calendar.MINUTE, 0);
         c.set(Calendar.SECOND, 0);
 
@@ -586,7 +587,7 @@ public class PersistentModel implements Model {
             }
 
         } else if (intervalTime.equals("day")) {
-            c.set(Calendar.HOUR, 0);
+            c.set(Calendar.HOUR_OF_DAY, 0);
             c.add(Calendar.DAY_OF_YEAR, 1);
             for (int i = 0; i < intervalsNumber; i++) {
                 long endIntervalTimeMillis = c.getTimeInMillis();
@@ -596,8 +597,8 @@ public class PersistentModel implements Model {
             }
 
         } else if (intervalTime.equals("week")) {
-            c.set(Calendar.HOUR, 0);
-            c.set(Calendar.DAY_OF_WEEK, 0);
+            c.set(Calendar.HOUR_OF_DAY, 0);
+            c.set(Calendar.DAY_OF_WEEK, 1);
             c.add(Calendar.WEEK_OF_YEAR, 1);
             for (int i = 0; i < intervalsNumber; i++) {
                 long endIntervalTimeMillis = c.getTimeInMillis();
@@ -607,8 +608,8 @@ public class PersistentModel implements Model {
             }
 
         } else if (intervalTime.equals("month")) {
-            c.set(Calendar.HOUR, 0);
-            c.set(Calendar.DAY_OF_MONTH, 0);
+            c.set(Calendar.HOUR_OF_DAY, 0);
+            c.set(Calendar.DAY_OF_MONTH, 1);
             c.add(Calendar.MONTH, 1);
             for (int i = 0; i < intervalsNumber; i++) {
                 long endIntervalTimeMillis = c.getTimeInMillis();
@@ -618,9 +619,8 @@ public class PersistentModel implements Model {
             }
 
         } else if (intervalTime.equals("year")) {
-            c.set(Calendar.HOUR, 0);
-            c.set(Calendar.DAY_OF_YEAR, 0);
-            c.set(Calendar.MONTH, 0);
+            c.set(Calendar.HOUR_OF_DAY, 0);
+            c.set(Calendar.DAY_OF_YEAR, 1);
             c.add(Calendar.YEAR, 1);
             for (int i = 0; i < intervalsNumber; i++) {
                 long endIntervalTimeMillis = c.getTimeInMillis();
@@ -629,7 +629,6 @@ public class PersistentModel implements Model {
                 intervals.add(calculateInterval(userID, startIntervalTimeMillis, endIntervalTimeMillis));
             }
         }
-
         return intervals;
     }
 
@@ -645,8 +644,8 @@ public class PersistentModel implements Model {
         ArrayList<BalanceHistoryPoint> balanceHistoryPoints = customORM.getBalanceHistoryPointsInRange(userID, startIntervalTimeMillis, endIntervalTimeMillis);
         float open;
         float close;
-        float high = 0;
-        float low = 0;
+        float high;
+        float low;
         float volume = 0;
         long timeStampSeconds = startIntervalTimeMillis / 1000;
         if (balanceHistoryPoints.size() > 0) {
@@ -667,6 +666,8 @@ public class PersistentModel implements Model {
         } else {
             close = customORM.getPreviousBalanceHistoryPointClose(userID, startIntervalTimeMillis);
             open = close;
+            high = close;
+            low = close;
         }
         Interval interval = new Interval(open, close, high, low, volume, timeStampSeconds);
         return interval;
