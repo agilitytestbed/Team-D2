@@ -1,8 +1,6 @@
 package nl.utwente.ing.model.persistentmodel;
 
-import nl.utwente.ing.model.bean.Category;
-import nl.utwente.ing.model.bean.CategoryRule;
-import nl.utwente.ing.model.bean.Transaction;
+import nl.utwente.ing.model.bean.*;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -183,7 +181,7 @@ public class CustomORM {
                     "SET type = ?\n" +
                     "WHERE user_id = ?\n" +
                     "AND category_rule_id = ?;";
-    private static final String UPDATE_CATEGORYRULE_CATEGORYID=
+    private static final String UPDATE_CATEGORYRULE_CATEGORYID =
             "UPDATE CategoryRule_Table\n" +
                     "SET category_id = ?\n" +
                     "WHERE user_id = ?\n" +
@@ -192,6 +190,33 @@ public class CustomORM {
             "DELETE FROM CategoryRule_Table\n" +
                     "WHERE user_id = ?\n" +
                     "AND category_rule_id = ?;";
+    private static final String GET_BALANCE_HISTORY_POINTS_IN_RANGE =
+            "SELECT open, close, volume, time_stamp_millis\n" +
+                    "FROM BalanceHistory_Table\n" +
+                    "WHERE user_id = ?\n" +
+                    "AND time_stamp_millis > ?\n" +
+                    "AND time_stamp_millis < ?\n" +
+                    "ORDER BY time_stamp_millis ASC;";
+    private static final String GET_PREVIOUS_BALANCE_HISTORY_POINT_CLOSE =
+            "SELECT close, time_stamp_millis\n" +
+                    "FROM BalanceHistory_Table\n" +
+                    "WHERE user_id = ?\n" +
+                    "AND time_stamp_millis < ?\n" +
+                    "ORDER BY time_stamp_millis DESC\n" +
+                    "LIMIT 1;";
+    private static final String CREATE_BALANCE_HISTORY_POINT =
+            "INSERT INTO BalanceHistory_Table (user_id, time_stamp_millis, open, close, volume)\n" +
+                    "VALUES (?, ?, ?, ?, ?);";
+    private static final String UPDATE_BALANCE_HISTORY_POINT =
+            "UPDATE BalanceHistory_Table\n" +
+                    "SET open = ?, close = ?, volume = ?\n" +
+                    "WHERE user_id = ?\n" +
+                    "AND time_stamp_millis = ?;";
+    private static final String GET_FUTURE_BALANCE_HISTORY_POINTS =
+            "SELECT time_stamp_millis, open, close, volume\n" +
+                    "FROM BalanceHistory_Table\n" +
+                    "WHERE user_id = ?\n" +
+                    "AND time_stamp_millis > ?\n;";
 
 
     /**
@@ -334,7 +359,7 @@ public class CustomORM {
     /**
      * Method used to change the description of a Transaction in the database.
      *
-     * @param description        The new description of the Transaction.
+     * @param description   The new description of the Transaction.
      * @param userID        The id of the user whose Transaction with transactionID will be updated.
      * @param transactionID The id of the to be updated Transaction.
      */
@@ -798,7 +823,7 @@ public class CustomORM {
     /**
      * Method used to retrieve a CategoryRule from the database.
      *
-     * @param userID     The id of the user from which a CategoryRule should be retrieved.
+     * @param userID         The id of the user from which a CategoryRule should be retrieved.
      * @param categoryRuleID The id of the to be retrieved CategoryRule.
      * @return A CategoryRule object containing data retrieved from the database.
      */
@@ -826,7 +851,7 @@ public class CustomORM {
     /**
      * Method used to increase the highest ID of CategoryRules by one.
      *
-     * @param userID    The ID of the user.
+     * @param userID The ID of the user.
      */
     public void increaseHighestCategoryRuleID(int userID) {
         try {
@@ -841,8 +866,8 @@ public class CustomORM {
     /**
      * Method used to retrieve the highest ID of CategoryRules.
      *
-     * @param userID    The ID of the user.
-     * @return  The highest ID of CategoryRules.
+     * @param userID The ID of the user.
+     * @return The highest ID of CategoryRules.
      */
     public long getHighestCategoryRuleID(int userID) {
         long highestCategoryRuleID = -1;
@@ -860,13 +885,13 @@ public class CustomORM {
     /**
      * Method used to insert a new CategoryRule into the database.
      *
-     * @param userID            The id of the user to which this new CategoryRule will belong.
-     * @param categoryID        The ID of the to be inserted CategoryRule.
-     * @param description       The description of the to be inserted CategoryRule.
-     * @param iBan              The iban of the to be inserted CategoryRule.
-     * @param type              The type of the to be inserted CategoryRule.
-     * @param categoryID        The categoryID of the to be inserted CategoryRule.
-     * @param applyOnHistory    Whether the categoryRule applies to old transactions or not.
+     * @param userID         The id of the user to which this new CategoryRule will belong.
+     * @param categoryID     The ID of the to be inserted CategoryRule.
+     * @param description    The description of the to be inserted CategoryRule.
+     * @param iBan           The iban of the to be inserted CategoryRule.
+     * @param type           The type of the to be inserted CategoryRule.
+     * @param categoryID     The categoryID of the to be inserted CategoryRule.
+     * @param applyOnHistory Whether the categoryRule applies to old transactions or not.
      */
     public void createCategoryRule(int userID, long categoryRuleID, String description, String iBan, String type,
                                    long categoryID, boolean applyOnHistory) {
@@ -888,9 +913,9 @@ public class CustomORM {
     /**
      * Method used to update the description of a CategoryRule.
      *
-     * @param description       The new description.
-     * @param userID            The ID of the user.
-     * @param categoryRuleID    The ID of the categoryRule.
+     * @param description    The new description.
+     * @param userID         The ID of the user.
+     * @param categoryRuleID The ID of the categoryRule.
      */
     public void updateCategoryRuleDescription(String description, int userID, Long categoryRuleID) {
         try {
@@ -907,9 +932,9 @@ public class CustomORM {
     /**
      * Method used to update the iban of a CategoryRule.
      *
-     * @param iBan              The new iban.
-     * @param userID            The ID of the user.
-     * @param categoryRuleID    The ID of the categoryRule.
+     * @param iBan           The new iban.
+     * @param userID         The ID of the user.
+     * @param categoryRuleID The ID of the categoryRule.
      */
     public void updateCategoryRuleIBAN(String iBan, int userID, Long categoryRuleID) {
         try {
@@ -926,9 +951,9 @@ public class CustomORM {
     /**
      * Method used to update the type of a CategoryRule.
      *
-     * @param type              The new type.
-     * @param userID            The ID of the user.
-     * @param categoryRuleID    The ID of the categoryRule.
+     * @param type           The new type.
+     * @param userID         The ID of the user.
+     * @param categoryRuleID The ID of the categoryRule.
      */
     public void updateCategoryRuleType(String type, int userID, Long categoryRuleID) {
         try {
@@ -945,9 +970,9 @@ public class CustomORM {
     /**
      * Method used to update the categoryID of a CategoryRule.
      *
-     * @param categoryID        The new categoryID.
-     * @param userID            The ID of the user.
-     * @param categoryRuleID    The ID of the categoryRule.
+     * @param categoryID     The new categoryID.
+     * @param userID         The ID of the user.
+     * @param categoryRuleID The ID of the categoryRule.
      */
     public void updateCategoryRuleCategory(Long categoryID, int userID, Long categoryRuleID) {
         try {
@@ -964,8 +989,8 @@ public class CustomORM {
     /**
      * Method used to remove a CategoryRule from the database.
      *
-     * @param userID            The ID of the user which the CategoryRule belongs to.
-     * @param categoryRuleID    The ID of the to be removed CategoryRule.
+     * @param userID         The ID of the user which the CategoryRule belongs to.
+     * @param categoryRuleID The ID of the to be removed CategoryRule.
      */
     public void deleteCategoryRule(int userID, long categoryRuleID) {
         try {
@@ -976,5 +1001,125 @@ public class CustomORM {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Method used to get all the balance history points between the specified start and end time.
+     *
+     * @param userID                The specified ID of the user.
+     * @param startTimestampMillis  The start time of the desired range of points.
+     * @param endTimestampMillis    The end time of the desired range of points.
+     * @return  All the balance history points in the desired range.
+     */
+    public ArrayList<BalanceHistoryPoint> getBalanceHistoryPointsInRange(int userID, long startTimestampMillis, long endTimestampMillis) {
+        ArrayList<BalanceHistoryPoint> balanceHistoryPoints = new ArrayList<>();
+        try {
+            PreparedStatement statement = connection.prepareStatement(GET_BALANCE_HISTORY_POINTS_IN_RANGE);
+            statement.setInt(1, userID);
+            statement.setLong(2, startTimestampMillis);
+            statement.setLong(3, endTimestampMillis);
+            ResultSet resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                float open = resultSet.getFloat(1);
+                float close = resultSet.getFloat(2);
+                float volume = resultSet.getFloat(3);
+                long timeStampMillis = resultSet.getLong(4);
+                balanceHistoryPoints.add(new BalanceHistoryPoint(open, close, volume, timeStampMillis));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return balanceHistoryPoints;
+    }
+
+    /**
+     * Method used to retrieve the balance close value of the balance history point that was the last before the to be added
+     * point that starts with the specified timestamp.
+     *
+     * @param userID            The specified ID of the user.
+     * @param timestampMillis   The timestamp of the to be added balance history point.
+     * @return  The close value of the balance history point that was the last before the specified time.
+     */
+    public float getPreviousBalanceHistoryPointClose(int userID, long timestampMillis) {
+        float close = 0;
+        try {
+            PreparedStatement statement = connection.prepareStatement(GET_PREVIOUS_BALANCE_HISTORY_POINT_CLOSE);
+            statement.setInt(1, userID);
+            statement.setLong(2, timestampMillis);
+            ResultSet resultSet = statement.executeQuery();
+            if (resultSet.next()) {
+                close = resultSet.getFloat(1);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return close;
+    }
+
+    /**
+     * Method used to create a balance history point in the database.
+     *
+     * @param userID                The ID of the specified user.
+     * @param balanceHistoryPoint   The data to be inserted in the database.
+     */
+    public void createBalanceHistoryPoint(int userID, BalanceHistoryPoint balanceHistoryPoint) {
+        try {
+            PreparedStatement statement = connection.prepareStatement(CREATE_BALANCE_HISTORY_POINT);
+            statement.setInt(1, userID);
+            statement.setLong(2, balanceHistoryPoint.getTimeStamp());
+            statement.setFloat(3, balanceHistoryPoint.getOpen());
+            statement.setFloat(4, balanceHistoryPoint.getClose());
+            statement.setFloat(5, balanceHistoryPoint.getVolume());
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Method used to update a balance history point in the database.
+     *
+     * @param userID    The ID of the specified user.
+     * @param b         The balance history point that needs to be updated, its timestamp must already exist in the database.
+     */
+    public void updateBalanceHistoryPoint(int userID, BalanceHistoryPoint b) {
+        try {
+            PreparedStatement statement = connection.prepareStatement(UPDATE_BALANCE_HISTORY_POINT);
+            statement.setFloat(1, b.getOpen());
+            statement.setFloat(2, b.getClose());
+            statement.setFloat(3, b.getVolume());
+            statement.setInt(4, userID);
+            statement.setLong(5, b.getTimeStamp());
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Method used to retrieve the balance history points that are further in time then the given timestamp
+     *
+     * @param userID            The ID of the specified user.
+     * @param timestampMillis   The timestamp of the balance history point before the points to return.
+     * @return  All balance history points that occur after the timestamp given.
+     */
+    public ArrayList<BalanceHistoryPoint> getFutureBalanceHistoryPoints(int userID, long timestampMillis) {
+        ArrayList<BalanceHistoryPoint> balanceHistoryPoints = new ArrayList<>();
+        try {
+            PreparedStatement statement = connection.prepareStatement(GET_FUTURE_BALANCE_HISTORY_POINTS);
+            statement.setInt(1, userID);
+            statement.setLong(2, timestampMillis);
+            ResultSet resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                long timeStamp = resultSet.getLong(1);
+                float open = resultSet.getFloat(2);
+                float low = resultSet.getFloat(3);
+                float volume = resultSet.getFloat(4);
+                balanceHistoryPoints.add(new BalanceHistoryPoint(open, low, volume, timeStamp));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return balanceHistoryPoints;
     }
 }

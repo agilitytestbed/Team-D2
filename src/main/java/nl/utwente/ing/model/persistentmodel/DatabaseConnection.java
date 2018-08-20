@@ -102,6 +102,17 @@ public class DatabaseConnection {
                             "  PRIMARY KEY(user_id, category_rule_id)\n" +
                             ");"
             );
+            statement.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS BalanceHistory_Table(\n" +
+                            "  user_id INTEGER,\n" +
+                            "  time_stamp_millis BIGINT,\n" +
+                            "  open float ,\n" +
+                            "  close float ,\n" +
+                            "  volume float ,\n" +
+                            "  FOREIGN KEY(user_id) REFERENCES User_Table(user_id),\n" +
+                            "  PRIMARY KEY(user_id, time_stamp_millis)\n" +
+                            ");"
+            );
             statement.close();
             connection.setAutoCommit(true);
         } catch (SQLException e) {
