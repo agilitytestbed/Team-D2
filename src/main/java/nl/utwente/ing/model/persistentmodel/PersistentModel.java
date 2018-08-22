@@ -672,4 +672,10 @@ public class PersistentModel implements Model {
         Interval interval = new Interval(open, close, high, low, volume, timeStampSeconds);
         return interval;
     }
+
+    public ArrayList<SavingGoal> getSavingGoals(String sessionID) throws InvalidSessionIDException {
+        ArrayList<SavingGoal> savingGoals = new ArrayList<>();
+
+        return savingGoals;
+    }
 }

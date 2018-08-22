@@ -214,6 +214,8 @@ public interface Model {
      */
     ArrayList<Interval> getIntervals(String sessionID, int intervalsNumber, String intervalTime) throws InvalidSessionIDException;
 
+    ArrayList<SavingGoal> getSavingGoals(String sessionID) throws InvalidSessionIDException;
+
     /**
      * Method used to create and retrieve a new Session.
      *
