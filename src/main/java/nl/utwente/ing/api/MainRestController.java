@@ -3,10 +3,7 @@ package nl.utwente.ing.api;
 import nl.utwente.ing.exception.InvalidSessionIDException;
 import nl.utwente.ing.exception.ResourceNotFoundException;
 import nl.utwente.ing.model.Model;
-import nl.utwente.ing.model.bean.Category;
-import nl.utwente.ing.model.bean.CategoryRule;
-import nl.utwente.ing.model.bean.Interval;
-import nl.utwente.ing.model.bean.Transaction;
+import nl.utwente.ing.model.bean.*;
 import nl.utwente.ing.model.persistentmodel.PersistentModel;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -484,9 +481,9 @@ public class MainRestController {
     /**
      * Method used to retrieve a certain CategoryRule belonging to the user issuing the current request.
      *
-     * @param pSessionID        The sessionID specified in the request parameters.
-     * @param hSessionID        The sessionID specified in the HTTP header.
-     * @param categoryRuleID    The categoryID of the CategoryRule that will be retrieved.
+     * @param pSessionID     The sessionID specified in the request parameters.
+     * @param hSessionID     The sessionID specified in the HTTP header.
+     * @param categoryRuleID The categoryID of the CategoryRule that will be retrieved.
      * @return A ResponseEntity containing a HTTP status code and either a status message or
      * the CategoryRule with categoryRuleID belonging to the user issuing the current request.
      */
@@ -510,10 +507,10 @@ public class MainRestController {
     /**
      * Method used to update a certain CategoryRule belonging to the user issuing the current request.
      *
-     * @param pSessionID        The sessionID specified in the request parameters.
-     * @param hSessionID        The sessionID specified in the HTTP header.
-     * @param categoryRuleID    The categoryRuleID of the CategoryRule that will be updated.
-     * @param c                 The CategoryRule object as specified in the json HTTP body.
+     * @param pSessionID     The sessionID specified in the request parameters.
+     * @param hSessionID     The sessionID specified in the HTTP header.
+     * @param categoryRuleID The categoryRuleID of the CategoryRule that will be updated.
+     * @param c              The CategoryRule object as specified in the json HTTP body.
      * @return A ResponseEntity containing a HTTP status code and either a status message or
      * the CategoryRule updated using this method.
      */
@@ -546,9 +543,9 @@ public class MainRestController {
     /**
      * Method used to remove a certain CategoryRule belonging to the user issuing the current request.
      *
-     * @param pSessionID        The sessionID specified in the request parameters.
-     * @param hSessionID        The sessionID specified in the HTTP header.
-     * @param categoryRuleID    The categoryRuleID of the CategoryRule that will be deleted.
+     * @param pSessionID     The sessionID specified in the request parameters.
+     * @param hSessionID     The sessionID specified in the HTTP header.
+     * @param categoryRuleID The categoryRuleID of the CategoryRule that will be deleted.
      * @return A ResponseEntity containing a HTTP status code and a status message.
      */
     @RequestMapping(method = RequestMethod.DELETE,
@@ -571,19 +568,19 @@ public class MainRestController {
     /**
      * Method used to retrieve balance history over a certain period of time.
      *
-     * @param pSessionID        The sessionID specified in the request parameters.
-     * @param hSessionID        The sessionID specified in the HTTP header.
-     * @param intervalTime      The type of the to be retrieved intervals.
-     * @param intervals         The number of the to be retrieved intervals.
+     * @param pSessionID   The sessionID specified in the request parameters.
+     * @param hSessionID   The sessionID specified in the HTTP header.
+     * @param intervalTime The type of the to be retrieved intervals.
+     * @param intervals    The number of the to be retrieved intervals.
      * @return A ResponseEntity containing a HTTP status code and either a status message or
-     *         the balance history over the specified period.
+     * the balance history over the specified period.
      */
     @RequestMapping(method = RequestMethod.GET,
             value = RestControllerConstants.URI_PREFIX + "/balance/history")
     public ResponseEntity getBalanceHistory(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
-                                          @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID,
-                                          @RequestParam(value = "interval", defaultValue = "month") String intervalTime,
-                                          @RequestParam(value = "intervals", defaultValue = "24") String intervals) {
+                                            @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID,
+                                            @RequestParam(value = "interval", defaultValue = "month") String intervalTime,
+                                            @RequestParam(value = "intervals", defaultValue = "24") String intervals) {
         int intervalsNumber = 24;
         try {
             intervalsNumber = Integer.parseInt(intervals);
@@ -607,5 +604,64 @@ public class MainRestController {
         }
     }
 
+    @RequestMapping(method = RequestMethod.GET, value = RestControllerConstants.URI_PREFIX + "/savingGoals")
+    public ResponseEntity getSavingGoals(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
+                                         @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID) {
+        try {
+            String sessionID = this.getSessionID(pSessionID, hSessionID);
+            ArrayList<SavingGoal> savingGoals = model.getSavingGoals(sessionID);
+            return ResponseEntity.status(200).body(savingGoals);
+        } catch (InvalidSessionIDException e) {
+            return ResponseEntity.status(401).body("Session ID is missing or invalid");
+        }
+    }
+
+    @RequestMapping(method = RequestMethod.POST, value = RestControllerConstants.URI_PREFIX + "/savingGoals")
+    public ResponseEntity postSavingGoal(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
+                                         @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID,
+                                         @RequestParam(value = "name") String name,
+                                         @RequestParam(value = "goal") String goalString,
+                                         @RequestParam(value = "savePerMonth") String savePerMonthString,
+                                         @RequestParam(value = "minBalanceRequired", defaultValue = "0") String minBalanceRequiredString) {
+
+        float goal;
+        float savePerMonth;
+        float minBalanceRequired;
+        try {
+            goal = Float.parseFloat(goalString);
+            savePerMonth = Float.parseFloat(savePerMonthString);
+            minBalanceRequired = Float.parseFloat(minBalanceRequiredString);
+        } catch (NumberFormatException e) {
+            return ResponseEntity.status(405).body("Invalid input given");
+        }
+        if (name.equals("") || name == null || goal <= 0 || savePerMonth <= 0 || minBalanceRequired < 0) {
+            return ResponseEntity.status(405).body("Invalid input given");
+        }
+
+        try {
+            String sessionID = this.getSessionID(pSessionID, hSessionID);
+            SavingGoal savingGoal = model.postSavingGoal(sessionID, name, goal, savePerMonth, minBalanceRequired);
+            return ResponseEntity.status(201).body(savingGoal);
+        } catch (InvalidSessionIDException e) {
+            return ResponseEntity.status(401).body("Session ID is missing or invalid");
+        }
+    }
+
+    @RequestMapping(method = RequestMethod.DELETE,
+            value = RestControllerConstants.URI_PREFIX + "/savingGoals/{savingGoalID}")
+    public ResponseEntity deleteSavingGoal(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
+                                             @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID,
+                                             @PathVariable String savingGoalID) {
+        try {
+            String sessionID = this.getSessionID(pSessionID, hSessionID);
+            long savingGoalIDLong = Long.parseLong(savingGoalID);
+            model.deleteSavingGoal(sessionID, savingGoalIDLong);
+            return ResponseEntity.status(204).body("Resource deleted");
+        } catch (InvalidSessionIDException e) {
+            return ResponseEntity.status(401).body("Session ID is missing or invalid");
+        } catch (NumberFormatException | ResourceNotFoundException e) {
+            return ResponseEntity.status(404).body("Resource not found");
+        }
+    }
 
 }

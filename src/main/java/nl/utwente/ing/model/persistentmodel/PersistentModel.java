@@ -97,31 +97,109 @@ public class PersistentModel implements Model {
                     }
                 }
             }
-            setBalanceHistoryPoint(date, amount, type, userID);
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+            dateFormat.setLenient(false);
+            long transactionTimestampMillis = -1;
+            try {
+                transactionTimestampMillis = dateFormat.parse(date.trim()).getTime();
+            } catch (ParseException e) {
+                e.printStackTrace();
+            }
+
+            long previousTimeMillis = customORM.getCurrentTimeMillis(userID);
+            if (previousTimeMillis < transactionTimestampMillis) {
+                updateSavingGoals(userID, transactionTimestampMillis, previousTimeMillis, externalIBAN);
+            }
+
+            setBalanceHistoryPoint(transactionTimestampMillis, amount, type, userID);
             this.populateCategory(userID, transaction);
+
         } catch (SQLException e) {
             e.printStackTrace();
         }
         return transaction;
     }
 
+    private void updateSavingGoals(int userID, long currentTimestampMillis, long previousTimeMillis, String externalIBAN) {
+        customORM.setCurrentTimeMillis(userID, currentTimestampMillis);
+
+        Calendar currentCal = new GregorianCalendar();
+        currentCal.setTimeInMillis(currentTimestampMillis);
+
+        Calendar previousCal = new GregorianCalendar();
+        previousCal.setTimeInMillis(previousTimeMillis);
+
+        int monthsDiff = currentCal.get(Calendar.MONTH) - previousCal.get(Calendar.MONTH);
+        int yearsInBetween = currentCal.get(Calendar.YEAR) - previousCal.get(Calendar.YEAR);
+        monthsDiff += yearsInBetween * 12;
+
+        // Assuming the SQL statement sorted it by saving_goal_id ASC (so in order of creation)
+        ArrayList<SavingGoal> savingGoals = customORM.getSavingGoals(userID);
+
+        if (monthsDiff > 0 && savingGoals.size() > 0) {
+            previousCal.set(Calendar.MILLISECOND, 0);
+            previousCal.set(Calendar.SECOND, 0);
+            previousCal.set(Calendar.MINUTE, 0);
+            previousCal.set(Calendar.HOUR, 0);
+            previousCal.set(Calendar.DAY_OF_MONTH, 0);
+            previousCal.add(Calendar.MONTH, 1);
+
+            for (int i = 0; i < monthsDiff; i++) {
+                for (SavingGoal s : savingGoals) {
+                    float previousClose = customORM.getPreviousBalanceHistoryPointClose(userID, currentTimestampMillis);
+                    if (s.getBalance() < s.getGoal() && previousClose > s.getMinBalanceRequired()) {
+                        try {
+                            connection.setAutoCommit(false);
+                            customORM.increaseHighestTransactionID(userID);
+                            long transactionID = customORM.getHighestTransactionID(userID);
+                            connection.commit();
+                            connection.setAutoCommit(true);
+
+                            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+                            String date = null;
+                            boolean noDateFound = true;
+                            long savingGoalTransactionTimeStamp = -1;
+
+                            while (noDateFound) {
+                                long savingGoalTransactionTimeMillis = previousCal.getTimeInMillis();
+                                if (customORM.balanceHistoryPointExists(userID, savingGoalTransactionTimeMillis)) {
+                                    date = dateFormat.format(new Date(savingGoalTransactionTimeMillis));
+                                    savingGoalTransactionTimeStamp = savingGoalTransactionTimeMillis;
+                                    noDateFound = false;
+                                }
+                                previousCal.add(Calendar.MILLISECOND, 1);
+                            }
+
+                            float amount = s.getSavePerMonth();
+                            String description = "Saving money for goal: " + s.getName();
+                            String type = "withdrawal";
+
+                            customORM.createTransaction(userID, transactionID, date, amount, description, externalIBAN, type);
+                            setBalanceHistoryPoint(savingGoalTransactionTimeStamp, amount, type, userID);
+
+                            float newBalance = s.getBalance() + s.getSavePerMonth();
+                            customORM.updateSavingGoalBalance(userID, s.getId(), newBalance);
+                        } catch (SQLException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    previousCal.set(Calendar.MILLISECOND, 0);
+                    previousCal.add(Calendar.MONTH, 1);
+                }
+            }
+        }
+    }
+
+
     /**
      * Method used to create a balance history point in the database.
      *
-     * @param date      The date of the transaction.
-     * @param amount    The amount of the transaction.
-     * @param type      The type of the transaction (deposit or withdrawal).
-     * @param userID    The ID of the specified user.
+     * @param timestampMillis The timestamp in milliseconds of the transaction.
+     * @param amount          The amount of the transaction.
+     * @param type            The type of the transaction (deposit or withdrawal).
+     * @param userID          The ID of the specified user.
      */
-    private void setBalanceHistoryPoint(String date, float amount, String type, int userID) {
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
-        dateFormat.setLenient(false);
-        long timestampMillis = -1;
-        try {
-            timestampMillis = dateFormat.parse(date.trim()).getTime();
-        } catch (ParseException e) {
-            e.printStackTrace();
-        }
+    private void setBalanceHistoryPoint(long timestampMillis, float amount, String type, int userID) {
         float volume = amount;
         if (type.equals("withdrawal")) {
             amount = -amount;
@@ -137,9 +215,9 @@ public class PersistentModel implements Model {
      * Method used to update all balance history points that are already in the database, but record history after the
      * currently added balance history point.
      *
-     * @param userID            The ID of the specified user.
-     * @param timestampMillis   The time stamp in milliseconds of the current transaction.
-     * @param amount            The amount of the current transaction.
+     * @param userID          The ID of the specified user.
+     * @param timestampMillis The time stamp in milliseconds of the current transaction.
+     * @param amount          The amount of the current transaction.
      */
     private void fixFutureBalanceHistoryPoints(int userID, long timestampMillis, float amount) {
         ArrayList<BalanceHistoryPoint> futureBalanceHistoryPoints = customORM.getFutureBalanceHistoryPoints(userID, timestampMillis);
@@ -635,10 +713,10 @@ public class PersistentModel implements Model {
     /**
      * Method used to calculate values for an interval between start en end time.
      *
-     * @param userID                    The ID of the specified user.
-     * @param startIntervalTimeMillis   The start time of the interval.
-     * @param endIntervalTimeMillis     The end time of the interval.
-     * @return  The balancehistory between start and end time, in an interval object.
+     * @param userID                  The ID of the specified user.
+     * @param startIntervalTimeMillis The start time of the interval.
+     * @param endIntervalTimeMillis   The end time of the interval.
+     * @return The balancehistory between start and end time, in an interval object.
      */
     public Interval calculateInterval(int userID, long startIntervalTimeMillis, long endIntervalTimeMillis) {
         ArrayList<BalanceHistoryPoint> balanceHistoryPoints = customORM.getBalanceHistoryPointsInRange(userID, startIntervalTimeMillis, endIntervalTimeMillis);
@@ -674,8 +752,59 @@ public class PersistentModel implements Model {
     }
 
     public ArrayList<SavingGoal> getSavingGoals(String sessionID) throws InvalidSessionIDException {
-        ArrayList<SavingGoal> savingGoals = new ArrayList<>();
-
+        int userID = getUserID(sessionID);
+        ArrayList<SavingGoal> savingGoals = customORM.getSavingGoals(userID);
         return savingGoals;
+    }
+
+    public SavingGoal postSavingGoal(String sessionID, String name, float goal, float savePerMonth, float minBalanceRequired)
+            throws InvalidSessionIDException {
+        int userID = getUserID(sessionID);
+        SavingGoal savingGoal = null;
+        try {
+            connection.setAutoCommit(false);
+            customORM.increaseHighestSavingGoalID(userID);
+            long savingGoalID = customORM.getHighestSavingGoalID(userID);
+            connection.commit();
+            connection.setAutoCommit(true);
+            customORM.createSavingGoal(userID, savingGoalID, name, goal, savePerMonth, minBalanceRequired);
+            savingGoal = customORM.getSavingGoal(userID, savingGoalID);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return savingGoal;
+    }
+
+    public void deleteSavingGoal(String sessionID, long savingGoalID) throws InvalidSessionIDException, ResourceNotFoundException {
+        int userID = getUserID(sessionID);
+        SavingGoal savingGoal = customORM.getSavingGoal(userID, savingGoalID);
+        if (savingGoal != null) {
+            long currentTimeStamp = Calendar.getInstance().get(Calendar.MILLISECOND);
+            try {
+                connection.setAutoCommit(false);
+                customORM.increaseHighestTransactionID(userID);
+                long transactionID = customORM.getHighestTransactionID(userID);
+                connection.commit();
+                connection.setAutoCommit(true);
+
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+                String date = dateFormat.format(new Date(currentTimeStamp));
+                float amount = savingGoal.getBalance();
+                String description = "Saving goal: " + savingGoal.getName() + " has been met and deleted";
+                String externalIBAN = "internal transaction";
+                String type = "deposit";
+
+                customORM.createTransaction(userID, transactionID, date, amount, description, externalIBAN, type);
+                setBalanceHistoryPoint(currentTimeStamp, amount, type, userID);
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+
+            customORM.deleteSavingGoal(userID, savingGoalID);
+
+        } else {
+            throw new ResourceNotFoundException();
+        }
+
     }
 }
