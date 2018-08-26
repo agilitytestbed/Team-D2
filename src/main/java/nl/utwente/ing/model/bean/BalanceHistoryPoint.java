@@ -7,6 +7,10 @@ public class BalanceHistoryPoint {
     private float volume;
     private long timeStamp;
 
+    public BalanceHistoryPoint() {
+
+    }
+
     public BalanceHistoryPoint(float open, float close, float volume, long timeStamp) {
         this.open = open;
         this.close = close;

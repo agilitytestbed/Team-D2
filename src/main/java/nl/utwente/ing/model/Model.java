@@ -214,6 +214,13 @@ public interface Model {
      */
     ArrayList<Interval> getIntervals(String sessionID, int intervalsNumber, String intervalTime) throws InvalidSessionIDException;
 
+    ArrayList<SavingGoal> getSavingGoals(String sessionID) throws InvalidSessionIDException;
+
+    SavingGoal postSavingGoal(String sessionID, String name, float goal, float savePerMonth, float minBalanceRequired)
+            throws InvalidSessionIDException;
+
+    void deleteSavingGoal(String sessionID, long savingGoalID) throws InvalidSessionIDException, ResourceNotFoundException;
+
     /**
      * Method used to create and retrieve a new Session.
      *

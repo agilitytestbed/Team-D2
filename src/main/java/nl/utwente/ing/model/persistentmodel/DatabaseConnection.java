@@ -52,7 +52,9 @@ public class DatabaseConnection {
                             "  session_id TEXT,\n" +
                             "  highest_transaction_id BIGINT,\n" +
                             "  highest_category_id BIGINT\n," +
-                            "  highest_category_rule_id BIGINT\n" +
+                            "  highest_saving_goal_id BIGINT,\n" +
+                            "  highest_category_rule_id BIGINT,\n" +
+                            "  system_time_millis BIGINT\n" +
                             ");"
             );
             statement.executeUpdate(
@@ -111,6 +113,19 @@ public class DatabaseConnection {
                             "  volume float ,\n" +
                             "  FOREIGN KEY(user_id) REFERENCES User_Table(user_id),\n" +
                             "  PRIMARY KEY(user_id, time_stamp_millis)\n" +
+                            ");"
+            );
+            statement.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS SavingGoal_Table(\n" +
+                            "  user_id INTEGER,\n" +
+                            "  saving_goal_id BIGINT,\n" +
+                            "  name TEXT,\n" +
+                            "  goal float ,\n" +
+                            "  save_per_month float ,\n" +
+                            "  min_balance_required float ,\n" +
+                            "  balance float ,\n" +
+                            "  FOREIGN KEY(user_id) REFERENCES User_Table(user_id),\n" +
+                            "  PRIMARY KEY(user_id, saving_goal_id)\n" +
                             ");"
             );
             statement.close();
