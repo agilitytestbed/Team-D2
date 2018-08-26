@@ -9,6 +9,10 @@ public class Interval {
     private float volume;
     private long timeStamp;
 
+    public Interval() {
+
+    }
+
     public Interval(float open, float close, float high, float low, float volume, long timeStamp) {
         this.open = open;
         this.close = close;

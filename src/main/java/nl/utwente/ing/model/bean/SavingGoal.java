@@ -9,6 +9,10 @@ public class SavingGoal {
     private float minBalanceRequired;
     private float balance;
 
+    public SavingGoal() {
+
+    }
+
     public SavingGoal(long id, String name, float goal, float savePerMonth, float minBalanceRequired, float balance) {
         this.id = id;
         this.name = name;

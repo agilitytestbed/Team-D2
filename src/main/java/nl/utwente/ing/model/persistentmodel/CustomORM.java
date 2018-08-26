@@ -195,7 +195,7 @@ public class CustomORM {
             "SELECT open, close, volume, time_stamp_millis\n" +
                     "FROM BalanceHistory_Table\n" +
                     "WHERE user_id = ?\n" +
-                    "AND time_stamp_millis > ?\n" +
+                    "AND time_stamp_millis >= ?\n" +
                     "AND time_stamp_millis < ?\n" +
                     "ORDER BY time_stamp_millis ASC;";
     private static final String GET_PREVIOUS_BALANCE_HISTORY_POINT_CLOSE =
@@ -228,7 +228,7 @@ public class CustomORM {
                     "WHERE user_id = ?;";
     private static final String GET_ALL_SAVING_GOALS =
             "SELECT saving_goal_id, name, goal, save_per_month, min_balance_required, balance\n" +
-                    "FROM SavingGoals_Table\n" +
+                    "FROM SavingGoal_Table\n" +
                     "WHERE user_id = ?\n" +
                     "ORDER BY saving_goal_id ASC;";
     private static final String CREATE_SAVING_GOAL =
@@ -1167,6 +1167,12 @@ public class CustomORM {
         return balanceHistoryPoints;
     }
 
+    /**
+     * Method used to retrieve the savinggoals of a user.
+     *
+     * @param userID    The ID of the specified user.
+     * @return  All savinggoals of the specified user.
+     */
     public ArrayList<SavingGoal> getSavingGoals(int userID) {
         ArrayList<SavingGoal> savingGoals = new ArrayList<>();
         try {
@@ -1188,6 +1194,11 @@ public class CustomORM {
         return savingGoals;
     }
 
+    /**
+     * Method used to increase the highest savinggoal ID of the specified user.
+     *
+     * @param userID    The ID of the specified user.
+     */
     public void increaseHighestSavingGoalID(int userID) {
         try {
             PreparedStatement statement = connection.prepareStatement(INCREASE_HIGHEST_SAVING_GOAL_ID);
@@ -1198,6 +1209,12 @@ public class CustomORM {
         }
     }
 
+    /**
+     * Method used to retrieve the highest savinggoal ID of the specified user.
+     *
+     * @param userID    The ID of the specified user.
+     * @return  The highest savinggoal ID.
+     */
     public long getHighestSavingGoalID(int userID) {
         long highestSavingGoalID = -1;
         try {
@@ -1211,6 +1228,17 @@ public class CustomORM {
         return highestSavingGoalID;
     }
 
+    /**
+     * Method used to create a savinggoal for the specified user.
+     *
+     * @param userID                The ID of the specified user.
+     * @param savingGoalID          The ID of the to be created savinggoal.
+     * @param name                  The name of the to be created savinggoal.
+     * @param goal                  The goal of the to be created savinggoal.
+     * @param savePerMonth          The amount to be saved per month of the to be created savinggoal.
+     * @param minBalanceRequired    The minimal balance that the user needs to have for the savinggoal
+     *                              to save money.
+     */
     public void createSavingGoal(int userID, long savingGoalID, String name, float goal, float savePerMonth, float minBalanceRequired) {
         try {
             PreparedStatement statement = connection.prepareStatement(CREATE_SAVING_GOAL);
@@ -1227,6 +1255,13 @@ public class CustomORM {
         }
     }
 
+    /**
+     * Method used to get the savinggoal with specified ID.
+     *
+     * @param userID        The ID of the specified user.
+     * @param savingGoalID  The ID of the to be retrieved savinggoal.
+     * @return  The savinggoal with savingGoalID.
+     */
     public SavingGoal getSavingGoal(int userID, long savingGoalID) {
         SavingGoal savingGoal = null;
         try {
@@ -1249,6 +1284,12 @@ public class CustomORM {
         return savingGoal;
     }
 
+    /**
+     * Method used to delete the specified savinggoal.
+     *
+     * @param userID        The ID of the specified user.
+     * @param savingGoalID  The ID of the to be deleted savinggoal.
+     */
     public void deleteSavingGoal(int userID, long savingGoalID) {
         try {
             PreparedStatement statement = connection.prepareStatement(DELETE_SAVING_GOAL);
@@ -1260,6 +1301,13 @@ public class CustomORM {
         }
     }
 
+
+    /**
+     * Method used to retrieve the current system time of the specified user.
+     *
+     * @param userID    The ID of the specified user.
+     * @return
+     */
     public long getCurrentTimeMillis(int userID) {
         long currentTimeMillis = -1;
         try {
@@ -1275,6 +1323,13 @@ public class CustomORM {
         return currentTimeMillis;
     }
 
+
+    /**
+     * Method used to store the current time of the specified user.
+     *
+     * @param userID                    The ID of the specified user.
+     * @param currentTimestampMillis    The current system time of the specified user.
+     */
     public void setCurrentTimeMillis(int userID, long currentTimestampMillis) {
         try {
             PreparedStatement statement = connection.prepareStatement(SET_CURRENT_TIME_MILLIS);
@@ -1286,6 +1341,13 @@ public class CustomORM {
         }
     }
 
+    /**
+     * Method used to check whether a balanceHistoryPoint with the specified timestamp exists.
+     *
+     * @param userID                            The ID of the specified user.
+     * @param savingGoalTransactionTimeMillis   The timestamp of a new transaction to be posted.
+     * @return
+     */
     public boolean balanceHistoryPointExists(int userID, long savingGoalTransactionTimeMillis) {
         boolean bhpExists = false;
         try {
@@ -1302,12 +1364,19 @@ public class CustomORM {
         return bhpExists;
     }
 
+    /**
+     * Method used to update the balance of a savinggoal.
+     *
+     * @param userID        The ID of the specified user.
+     * @param savingGoalID  The ID of the to be updated savinggoal.
+     * @param newBalance    The new balance of the savinggoal.
+     */
     public void updateSavingGoalBalance(int userID, long savingGoalID, float newBalance) {
         try {
             PreparedStatement statement = connection.prepareStatement(UPDATE_SAVING_GOAL_BALANCE);
-            statement.setLong(1, savingGoalID);
+            statement.setFloat(1, newBalance);
             statement.setInt(2, userID);
-            statement.setFloat(3, newBalance);
+            statement.setLong(3, savingGoalID);
             statement.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();

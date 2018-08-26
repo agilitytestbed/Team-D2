@@ -604,6 +604,14 @@ public class MainRestController {
         }
     }
 
+    /**
+     * Method used to retrieve the savinggoals of a user.
+     *
+     * @param pSessionID   The sessionID specified in the request parameters.
+     * @param hSessionID   The sessionID specified in the HTTP header.
+     * @return A ResponseEntity containing an HTTP status code and either a status message or
+     * a list of all the savinggoals of the specified user.
+     */
     @RequestMapping(method = RequestMethod.GET, value = RestControllerConstants.URI_PREFIX + "/savingGoals")
     public ResponseEntity getSavingGoals(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
                                          @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID) {
@@ -616,37 +624,47 @@ public class MainRestController {
         }
     }
 
+    /**
+     * Method used to create a new savinggoal.
+     *
+     * @param pSessionID    The sessionID specified in the request parameters.
+     * @param hSessionID    The sessionID specified in the HTTP header.
+     * @param s             The to be created savinggoal.
+     * @return              A responseEntity containing an HTTP status code and either a
+     * status message the newly created savinggoal of the specified user.
+     */
     @RequestMapping(method = RequestMethod.POST, value = RestControllerConstants.URI_PREFIX + "/savingGoals")
     public ResponseEntity postSavingGoal(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
                                          @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID,
-                                         @RequestParam(value = "name") String name,
-                                         @RequestParam(value = "goal") String goalString,
-                                         @RequestParam(value = "savePerMonth") String savePerMonthString,
-                                         @RequestParam(value = "minBalanceRequired", defaultValue = "0") String minBalanceRequiredString) {
+                                         @RequestBody SavingGoal s) {
 
-        float goal;
-        float savePerMonth;
-        float minBalanceRequired;
-        try {
-            goal = Float.parseFloat(goalString);
-            savePerMonth = Float.parseFloat(savePerMonthString);
-            minBalanceRequired = Float.parseFloat(minBalanceRequiredString);
-        } catch (NumberFormatException e) {
+        if (s == null || s.getName().equals(null) || s.getSavePerMonth() < 1 || s.getGoal() < 1) {
             return ResponseEntity.status(405).body("Invalid input given");
         }
-        if (name.equals("") || name == null || goal <= 0 || savePerMonth <= 0 || minBalanceRequired < 0) {
-            return ResponseEntity.status(405).body("Invalid input given");
+        float minBalanceRequired = 0;
+        if (s.getMinBalanceRequired() > 0) {
+            minBalanceRequired = s.getMinBalanceRequired();
         }
+        s.setMinBalanceRequired(minBalanceRequired);
 
         try {
             String sessionID = this.getSessionID(pSessionID, hSessionID);
-            SavingGoal savingGoal = model.postSavingGoal(sessionID, name, goal, savePerMonth, minBalanceRequired);
+            SavingGoal savingGoal = model.postSavingGoal(sessionID, s.getName(), s.getGoal(), s.getSavePerMonth(), s.getMinBalanceRequired());
             return ResponseEntity.status(201).body(savingGoal);
         } catch (InvalidSessionIDException e) {
             return ResponseEntity.status(401).body("Session ID is missing or invalid");
         }
     }
 
+    /**
+     * Method used to delete a savinggoal.
+     *
+     * @param pSessionID    The sessionID specified in the request parameters.
+     * @param hSessionID    The sessionID specified in the HTTP header.
+     * @param savingGoalID  The to be deleted savinggoal.
+     * @return  A responseEntity containing an HTTP status code and a status
+     * message.
+     */
     @RequestMapping(method = RequestMethod.DELETE,
             value = RestControllerConstants.URI_PREFIX + "/savingGoals/{savingGoalID}")
     public ResponseEntity deleteSavingGoal(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,

@@ -73,8 +73,24 @@ public class PersistentModel implements Model {
     public Transaction postTransaction(String sessionID, String date, float amount, String description, String externalIBAN, String type,
                                        long categoryID)
             throws InvalidSessionIDException, ResourceNotFoundException {
+
         int userID = this.getUserID(sessionID);
         Transaction transaction = null;
+
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+        dateFormat.setLenient(false);
+        long transactionTimestampMillis = -1;
+        try {
+            transactionTimestampMillis = dateFormat.parse(date.trim()).getTime();
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+
+        long previousTimeMillis = customORM.getCurrentTimeMillis(userID);
+        if (previousTimeMillis < transactionTimestampMillis) {
+            updateSavingGoals(userID, transactionTimestampMillis, previousTimeMillis, externalIBAN);
+        }
+
         try {
             connection.setAutoCommit(false);
             customORM.increaseHighestTransactionID(userID);
@@ -97,19 +113,6 @@ public class PersistentModel implements Model {
                     }
                 }
             }
-            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
-            dateFormat.setLenient(false);
-            long transactionTimestampMillis = -1;
-            try {
-                transactionTimestampMillis = dateFormat.parse(date.trim()).getTime();
-            } catch (ParseException e) {
-                e.printStackTrace();
-            }
-
-            long previousTimeMillis = customORM.getCurrentTimeMillis(userID);
-            if (previousTimeMillis < transactionTimestampMillis) {
-                updateSavingGoals(userID, transactionTimestampMillis, previousTimeMillis, externalIBAN);
-            }
 
             setBalanceHistoryPoint(transactionTimestampMillis, amount, type, userID);
             this.populateCategory(userID, transaction);
@@ -120,6 +123,16 @@ public class PersistentModel implements Model {
         return transaction;
     }
 
+    /**
+     * Method for determining if the first of the month has passed between the current to be created transaction and
+     * the current stored system time in the database. If the first has passed, all the savinggoals will be checked if
+     * they should create a transaction to save money on their balance.
+     *
+     * @param userID
+     * @param currentTimestampMillis
+     * @param previousTimeMillis
+     * @param externalIBAN
+     */
     private void updateSavingGoals(int userID, long currentTimestampMillis, long previousTimeMillis, String externalIBAN) {
         customORM.setCurrentTimeMillis(userID, currentTimestampMillis);
 
@@ -136,7 +149,7 @@ public class PersistentModel implements Model {
         // Assuming the SQL statement sorted it by saving_goal_id ASC (so in order of creation)
         ArrayList<SavingGoal> savingGoals = customORM.getSavingGoals(userID);
 
-        if (monthsDiff > 0 && savingGoals.size() > 0) {
+        if (monthsDiff > 0 && savingGoals.size() > 0  && customORM.getTransactions(userID, 1, 0).size() > 0) {
             previousCal.set(Calendar.MILLISECOND, 0);
             previousCal.set(Calendar.SECOND, 0);
             previousCal.set(Calendar.MINUTE, 0);
@@ -162,8 +175,8 @@ public class PersistentModel implements Model {
 
                             while (noDateFound) {
                                 long savingGoalTransactionTimeMillis = previousCal.getTimeInMillis();
-                                if (customORM.balanceHistoryPointExists(userID, savingGoalTransactionTimeMillis)) {
-                                    date = dateFormat.format(new Date(savingGoalTransactionTimeMillis));
+                                if (!customORM.balanceHistoryPointExists(userID, savingGoalTransactionTimeMillis)) {
+                                    date = dateFormat.format(previousCal.getTime());
                                     savingGoalTransactionTimeStamp = savingGoalTransactionTimeMillis;
                                     noDateFound = false;
                                 }
@@ -177,15 +190,16 @@ public class PersistentModel implements Model {
                             customORM.createTransaction(userID, transactionID, date, amount, description, externalIBAN, type);
                             setBalanceHistoryPoint(savingGoalTransactionTimeStamp, amount, type, userID);
 
-                            float newBalance = s.getBalance() + s.getSavePerMonth();
+                            float newBalance = s.getBalance() + amount;
+                            s.setBalance(newBalance);
                             customORM.updateSavingGoalBalance(userID, s.getId(), newBalance);
                         } catch (SQLException e) {
                             e.printStackTrace();
                         }
                     }
-                    previousCal.set(Calendar.MILLISECOND, 0);
-                    previousCal.add(Calendar.MONTH, 1);
                 }
+                previousCal.set(Calendar.MILLISECOND, 0);
+                previousCal.add(Calendar.MONTH, 1);
             }
         }
     }
@@ -751,12 +765,31 @@ public class PersistentModel implements Model {
         return interval;
     }
 
+    /**
+     * Method used to retrieve the savinggoals of a user.
+     *
+     * @param sessionID     The sessionID of the specified user.
+     * @return  All savinggoals of the specified user.
+     * @throws InvalidSessionIDException
+     */
     public ArrayList<SavingGoal> getSavingGoals(String sessionID) throws InvalidSessionIDException {
         int userID = getUserID(sessionID);
         ArrayList<SavingGoal> savingGoals = customORM.getSavingGoals(userID);
         return savingGoals;
     }
 
+
+    /**
+     * Method used to create a new savinggoal for the specified user.
+     *
+     * @param sessionID             The sessionID of the specified user.
+     * @param name                  The name of the to be created savinggoal.
+     * @param goal                  The goal of the to be created savinggoal.
+     * @param savePerMonth          The amount to be saved per month of the to be created savinggoal.
+     * @param minBalanceRequired    The minimal balance the user should have for the to be created savingoal to set money aside.
+     * @return  The created savinggoal.
+     * @throws InvalidSessionIDException
+     */
     public SavingGoal postSavingGoal(String sessionID, String name, float goal, float savePerMonth, float minBalanceRequired)
             throws InvalidSessionIDException {
         int userID = getUserID(sessionID);
@@ -775,11 +808,19 @@ public class PersistentModel implements Model {
         return savingGoal;
     }
 
+    /**
+     * Method used to delete a savingoal of the specified user.
+     *
+     * @param sessionID         The sessionID of the user.
+     * @param savingGoalID      The ID of the to be deleted savinggoal.
+     * @throws InvalidSessionIDException
+     * @throws ResourceNotFoundException
+     */
     public void deleteSavingGoal(String sessionID, long savingGoalID) throws InvalidSessionIDException, ResourceNotFoundException {
         int userID = getUserID(sessionID);
         SavingGoal savingGoal = customORM.getSavingGoal(userID, savingGoalID);
         if (savingGoal != null) {
-            long currentTimeStamp = Calendar.getInstance().get(Calendar.MILLISECOND);
+            long currentTimeStamp = System.currentTimeMillis();
             try {
                 connection.setAutoCommit(false);
                 customORM.increaseHighestTransactionID(userID);

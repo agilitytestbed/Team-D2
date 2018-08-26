@@ -116,7 +116,7 @@ public class DatabaseConnection {
                             ");"
             );
             statement.executeUpdate(
-                    "CREATE TABLE IF NOT EXISTS SavingGoals_Table(\n" +
+                    "CREATE TABLE IF NOT EXISTS SavingGoal_Table(\n" +
                             "  user_id INTEGER,\n" +
                             "  saving_goal_id BIGINT,\n" +
                             "  name TEXT,\n" +
