@@ -682,4 +682,49 @@ public class MainRestController {
         }
     }
 
+    /**
+     * Method used to get all the payment requests.
+     *
+     * @param pSessionID    The sessionID specified in the request parameters.
+     * @param hSessionID    The sessionID specified in the HTTP header.
+     * @return A responseEntity containing an HTTP status code or a list of payment requests of the user.
+     */
+    @RequestMapping(method = RequestMethod.GET, value = RestControllerConstants.URI_PREFIX + "/paymentRequests")
+    public ResponseEntity getPaymentRequests(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
+                                         @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID) {
+        try {
+            String sessionID = this.getSessionID(pSessionID, hSessionID);
+            ArrayList<PaymentRequest> paymentRequests = model.getPaymentRequests(sessionID);
+            return ResponseEntity.status(200).body(paymentRequests);
+        } catch (InvalidSessionIDException e) {
+            return ResponseEntity.status(401).body("Session ID is missing or invalid");
+        }
+    }
+
+    /**
+     * Method used to create a payment request.
+     *
+     * @param pSessionID    The sessionID specified in the request parameters.
+     * @param hSessionID    The sessionID specified in the HTTP header.
+     * @param p             The to be created payment request.
+     * @return  A responseEntity containing an HTTP status code or the newly created payment requests of the user.
+     */
+    @RequestMapping(method = RequestMethod.POST, value = RestControllerConstants.URI_PREFIX + "/paymentRequests")
+    public ResponseEntity postPaymentRequest(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
+                                         @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID,
+                                         @RequestBody PaymentRequest p) {
+
+        if (p == null || p.getTransactions().size() > 0 || p.getNumber_of_requests() <= 0 || p.isFilled() || p.getAmount() <= 0 || p.getDescription() == null || p.getDue_date() == null) {
+            return ResponseEntity.status(405).body("Invalid input given");
+        }
+
+        try {
+            String sessionID = this.getSessionID(pSessionID, hSessionID);
+            PaymentRequest paymentRequest = model.postPaymentRequest(sessionID, p.getDescription(), p.getDue_date(), p.getAmount(), p.getNumber_of_requests());
+            return ResponseEntity.status(201).body(paymentRequest);
+        } catch (InvalidSessionIDException e) {
+            return ResponseEntity.status(401).body("Session ID is missing or invalid");
+        }
+    }
+
 }

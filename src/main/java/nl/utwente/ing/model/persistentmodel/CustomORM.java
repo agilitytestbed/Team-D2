@@ -141,8 +141,8 @@ public class CustomORM {
                     "AND t.user_id = ?\n" +
                     "AND t.transaction_id = ?;";
     private static final String CREATE_NEW_USER =
-            "INSERT INTO User_Table (session_id, highest_transaction_id, highest_category_id, highest_saving_goal_id, highest_category_rule_id, system_time_millis)\n" +
-                    "VALUES (?, 0, 0, 0, 0, 0);";
+            "INSERT INTO User_Table (session_id, highest_transaction_id, highest_category_id, highest_saving_goal_id, highest_category_rule_id, highest_payment_request_id,  system_time_millis)\n" +
+                    "VALUES (?, 0, 0, 0, 0, 0, 0);";
     private static final String GET_USER_ID =
             "SELECT user_id\n" +
                     "FROM User_Table\n" +
@@ -261,6 +261,48 @@ public class CustomORM {
                     "SET balance = ?\n" +
                     "WHERE user_id = ?\n" +
                     "AND saving_goal_id = ?;";
+    private static final String INCREASE_HIGHEST_PAYMENT_REQUEST_ID =
+            "UPDATE User_Table\n" +
+                    "SET highest_payment_request_id = highest_payment_request_id + 1\n" +
+                    "WHERE user_id = ?;";
+    private static final String GET_HIGHEST_PAYMENT_REQUEST_ID =
+            "SELECT highest_payment_request_id\n" +
+                    "FROM User_Table\n" +
+                    "WHERE user_id = ?;";
+    private static final String GET_PAYMENT_REQUESTS =
+            "SELECT payment_request_id, description, due_date, amount, number_of_requests, filled\n" +
+                    "FROM PaymentRequest_Table\n" +
+                    "WHERE user_id = ?;";
+    private static final String GET_PAYMENT_REQUEST_TRANSACTIONS =
+            "SELECT t.transaction_id, t.date, t.amount, t.description, t.external_iban, t.type\n" +
+                    "FROM Transaction_Table t, PaymentRequest_Transaction pt\n" +
+                    "WHERE pt.user_id = ?\n" +
+                    "AND pt.user_id = t.user_id\n" +
+                    "AND pt.payment_request_id = ?\n" +
+                    "AND pt.transaction_id = t.transaction_id;";
+    private static final String UPDATE_PAYMENT_REQUEST_FILLED =
+            "UPDATE PaymentRequest_Table\n" +
+                    "SET filled = ?\n" +
+                    "WHERE user_id = ?\n" +
+                    "AND payment_request_id = ?;";
+    private static final String LINK_TRANSACTION_TO_PAYMENT_REQUEST=
+            "INSERT INTO PaymentRequest_Transaction (user_id, transaction_id, payment_request_id)\n" +
+                    "VALUES (?, ?, ?);";
+    private static final String CREATE_PAYMENT_REQUEST =
+            "INSERT INTO PaymentRequest_Table (user_id, payment_request_id, description, due_date, amount, number_of_requests, filled)\n" +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?);";
+    private static final String PAYMENT_REQUEST_IS_FILLED =
+            "SELECT pr.number_of_requests, COUNT(pt.transaction_id)\n" +
+                    "FROM PaymentRequest_Table pr, PaymentRequest_Transaction pt\n" +
+                    "WHERE pr.user_id = ?\n" +
+                    "AND pr.payment_request_id = ?\n" +
+                    "AND pr.payment_request_id = pt.payment_request_id\n" +
+                    "AND pr.user_id = pt.user_id;";
+    private static final String GET_OPEN_PAYMENT_REQUESTS =
+            "SELECT payment_request_id, description, due_date, amount, number_of_requests, filled\n" +
+                    "FROM PaymentRequest_Table\n" +
+                    "WHERE user_id = ?\n" +
+                    "AND filled = ?;";
 
 
     /**
@@ -1377,6 +1419,205 @@ public class CustomORM {
             statement.setFloat(1, newBalance);
             statement.setInt(2, userID);
             statement.setLong(3, savingGoalID);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Method used to retrieve all the payment requests from a specific user.
+     *
+     * @param userID    The ID of the user.
+     * @return  All payment requests of the specified user.
+     */
+    public ArrayList<PaymentRequest> getPaymentRequests(int userID) {
+        ArrayList<PaymentRequest> paymentRequests = new ArrayList<>();
+        try {
+            PreparedStatement statement = connection.prepareStatement(GET_PAYMENT_REQUESTS);
+            statement.setInt(1, userID);
+            ResultSet resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                long paymentRequestID = resultSet.getLong(1);
+                String description = resultSet.getString(2);
+                String due_date = resultSet.getString(3);
+                float amount = resultSet.getFloat(4);
+                long number_of_requests = resultSet.getLong(5);
+                boolean filled = resultSet.getBoolean(6);
+
+                ArrayList<Transaction> transactions = new ArrayList<>();
+
+                PreparedStatement transactionStatement = connection.prepareStatement(GET_PAYMENT_REQUEST_TRANSACTIONS);
+                transactionStatement.setInt(1, userID);
+                transactionStatement.setLong(2, paymentRequestID);
+                ResultSet transactionResultSet = transactionStatement.executeQuery();
+                while (transactionResultSet.next()) {
+                    long transactionID = transactionResultSet.getLong(1);
+                    String date = transactionResultSet.getString(2);
+                    float transactionAmount = transactionResultSet.getFloat(3);
+                    String transactionDescription = transactionResultSet.getString(4);
+                    String externalIBAN = transactionResultSet.getString(5);
+                    String type = transactionResultSet.getString(6);
+                    transactions.add(new Transaction(transactionID, date, transactionAmount, transactionDescription, externalIBAN, type));
+                }
+
+                paymentRequests.add(new PaymentRequest(paymentRequestID, description, due_date, amount, number_of_requests, filled, transactions));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return paymentRequests;
+
+    }
+
+
+    /**
+     * Method used to increase the highest payment request ID of a user.
+     *
+     * @param userID    The ID of the user.
+     */
+    public void increaseHighestPaymentRequestID(int userID) {
+        try {
+            PreparedStatement statement = connection.prepareStatement(INCREASE_HIGHEST_PAYMENT_REQUEST_ID);
+            statement.setInt(1, userID);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Method used to retrieve the highest payment request ID of a user.
+     *
+     * @param userID    The ID of the user.
+     * @return  The highest payment request ID of the specified user.
+     */
+    public long getHighestPaymentRequestID(int userID) {
+        long highestPaymentRequestID = -1;
+        try {
+            PreparedStatement statement = connection.prepareStatement(GET_HIGHEST_PAYMENT_REQUEST_ID);
+            statement.setInt(1, userID);
+            ResultSet rs = statement.executeQuery();
+            highestPaymentRequestID = rs.getLong(1);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return highestPaymentRequestID;
+    }
+
+    /**
+     * Method used to created a payment request in the database for a specific user.
+     *
+     * @param userID                The ID of the user.
+     * @param paymentRequestID      The ID of the payment request.
+     * @param description           The description of the payment request.
+     * @param due_date              The due date of the payment request.
+     * @param amount                The amount to be payed.
+     * @param number_of_requests    The number of payments needed.
+     */
+    public void createPaymentRequest(int userID, long paymentRequestID, String description, String due_date, float amount, long number_of_requests) {
+        try {
+            PreparedStatement statement = connection.prepareStatement(CREATE_PAYMENT_REQUEST);
+            statement.setInt(1, userID);
+            statement.setLong(2, paymentRequestID);
+            statement.setString(3, description);
+            statement.setString(4, due_date);
+            statement.setFloat(5, amount);
+            statement.setLong(6, number_of_requests);
+            statement.setBoolean(7, false);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Method used to retrieve all the payment requests that are not filled.
+     *
+     * @param userID    The ID of the user.
+     * @return  A list of payment requests that are not filled.
+     */
+    public ArrayList<PaymentRequest> getOpenPaymentRequests(int userID) {
+        // ordered by ID ASC
+        ArrayList<PaymentRequest> paymentRequests = new ArrayList<>();
+        try {
+            PreparedStatement statement = connection.prepareStatement(GET_OPEN_PAYMENT_REQUESTS);
+            statement.setInt(1, userID);
+            statement.setBoolean(2, false);
+            ResultSet resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                long paymentRequestID = resultSet.getLong(1);
+                String description = resultSet.getString(2);
+                String due_date = resultSet.getString(3);
+                float amount = resultSet.getFloat(4);
+                long number_of_requests = resultSet.getLong(5);
+                boolean filled = resultSet.getBoolean(6);
+
+                paymentRequests.add(new PaymentRequest(paymentRequestID, description, due_date, amount, number_of_requests, filled, new ArrayList<>()));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return paymentRequests;
+    }
+
+    /**
+     * Method used to link a transaction to a payment request.
+     *
+     * @param userID            The ID of the user.
+     * @param transactionID     The ID of the transaction.
+     * @param paymentRequestID  The ID of the payment request.
+     */
+    public void linkTransactionToPaymentRequest(int userID, long transactionID, long paymentRequestID) {
+        try {
+            PreparedStatement statement = connection.prepareStatement(LINK_TRANSACTION_TO_PAYMENT_REQUEST);
+            statement.setInt(1, userID);
+            statement.setLong(2, transactionID);
+            statement.setLong(3, paymentRequestID);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Method used to check whether a payment request is filled.
+     *
+     * @param userID            The ID of the user.
+     * @param paymentRequestID  The ID of the payment request.
+     * @return  true if the request is filled, false otherwise.
+     */
+    public boolean paymentRequestIsFilled(int userID, long paymentRequestID) {
+        boolean filled = false;
+        try {
+            PreparedStatement statement = connection.prepareStatement(PAYMENT_REQUEST_IS_FILLED);
+            statement.setInt(1, userID);
+            statement.setLong(2, paymentRequestID);
+            ResultSet resultSet = statement.executeQuery();
+            if (resultSet.next()) {
+                long number_of_requests = resultSet.getLong(1);
+                int transactions = resultSet.getInt(2);
+                filled = number_of_requests == new Long(transactions);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return filled;
+    }
+
+    /**
+     * Method used to update the filled status of a payment request.
+     *
+     * @param userID            The ID of the user.
+     * @param paymentRequestID  The ID of the payment request.
+     * @param filled            The new filled value of the payment request.
+     */
+    public void updatePaymentRequestFilled(int userID, long paymentRequestID, boolean filled) {
+        try {
+            PreparedStatement statement = connection.prepareStatement(UPDATE_PAYMENT_REQUEST_FILLED);
+            statement.setBoolean(1, filled);
+            statement.setInt(2, userID);
+            statement.setLong(3, paymentRequestID);
             statement.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();

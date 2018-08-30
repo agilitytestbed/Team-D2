@@ -85,7 +85,6 @@ public class PersistentModel implements Model {
         } catch (ParseException e) {
             e.printStackTrace();
         }
-
         long previousTimeMillis = customORM.getCurrentTimeMillis(userID);
         if (previousTimeMillis < transactionTimestampMillis) {
             updateSavingGoals(userID, transactionTimestampMillis, previousTimeMillis, externalIBAN);
@@ -114,6 +113,11 @@ public class PersistentModel implements Model {
                 }
             }
 
+            if (previousTimeMillis < transactionTimestampMillis && type.equals("deposit")) {
+                updatePaymentRequests(userID, amount, transactionID);
+
+            }
+
             setBalanceHistoryPoint(transactionTimestampMillis, amount, type, userID);
             this.populateCategory(userID, transaction);
 
@@ -121,6 +125,26 @@ public class PersistentModel implements Model {
             e.printStackTrace();
         }
         return transaction;
+    }
+
+    /**
+     * Method used to update the payment requests when a transaction comes in.
+     *
+     * @param user_id       The ID of the user.
+     * @param amount        The amount of the transaction.
+     * @param transactionID The ID of the transaction.
+     */
+    private void updatePaymentRequests(int user_id, float amount, long transactionID) {
+        ArrayList<PaymentRequest> paymentRequests = customORM.getOpenPaymentRequests(user_id);
+        for (PaymentRequest p : paymentRequests) {
+            if (p.getAmount() == amount) {
+                customORM.linkTransactionToPaymentRequest(user_id, transactionID, p.getId());
+                if (customORM.paymentRequestIsFilled(user_id, p.getId())) {
+                    customORM.updatePaymentRequestFilled(user_id, p.getId(), true);
+                }
+                break;
+            }
+        }
     }
 
     /**
@@ -149,7 +173,7 @@ public class PersistentModel implements Model {
         // Assuming the SQL statement sorted it by saving_goal_id ASC (so in order of creation)
         ArrayList<SavingGoal> savingGoals = customORM.getSavingGoals(userID);
 
-        if (monthsDiff > 0 && savingGoals.size() > 0  && customORM.getTransactions(userID, 1, 0).size() > 0) {
+        if (monthsDiff > 0 && savingGoals.size() > 0 && customORM.getTransactions(userID, 1, 0).size() > 0) {
             previousCal.set(Calendar.MILLISECOND, 0);
             previousCal.set(Calendar.SECOND, 0);
             previousCal.set(Calendar.MINUTE, 0);
@@ -768,8 +792,8 @@ public class PersistentModel implements Model {
     /**
      * Method used to retrieve the savinggoals of a user.
      *
-     * @param sessionID     The sessionID of the specified user.
-     * @return  All savinggoals of the specified user.
+     * @param sessionID The sessionID of the specified user.
+     * @return All savinggoals of the specified user.
      * @throws InvalidSessionIDException
      */
     public ArrayList<SavingGoal> getSavingGoals(String sessionID) throws InvalidSessionIDException {
@@ -782,12 +806,12 @@ public class PersistentModel implements Model {
     /**
      * Method used to create a new savinggoal for the specified user.
      *
-     * @param sessionID             The sessionID of the specified user.
-     * @param name                  The name of the to be created savinggoal.
-     * @param goal                  The goal of the to be created savinggoal.
-     * @param savePerMonth          The amount to be saved per month of the to be created savinggoal.
-     * @param minBalanceRequired    The minimal balance the user should have for the to be created savingoal to set money aside.
-     * @return  The created savinggoal.
+     * @param sessionID          The sessionID of the specified user.
+     * @param name               The name of the to be created savinggoal.
+     * @param goal               The goal of the to be created savinggoal.
+     * @param savePerMonth       The amount to be saved per month of the to be created savinggoal.
+     * @param minBalanceRequired The minimal balance the user should have for the to be created savingoal to set money aside.
+     * @return The created savinggoal.
      * @throws InvalidSessionIDException
      */
     public SavingGoal postSavingGoal(String sessionID, String name, float goal, float savePerMonth, float minBalanceRequired)
@@ -811,8 +835,8 @@ public class PersistentModel implements Model {
     /**
      * Method used to delete a savingoal of the specified user.
      *
-     * @param sessionID         The sessionID of the user.
-     * @param savingGoalID      The ID of the to be deleted savinggoal.
+     * @param sessionID    The sessionID of the user.
+     * @param savingGoalID The ID of the to be deleted savinggoal.
      * @throws InvalidSessionIDException
      * @throws ResourceNotFoundException
      */
@@ -846,6 +870,49 @@ public class PersistentModel implements Model {
         } else {
             throw new ResourceNotFoundException();
         }
+    }
 
+    /**
+     * Method used to retrieve all the payment requests of a user.
+     *
+     * @param sessionID     The sessionID of the user.
+     * @return  A list of all the payment requests belonging to the specified user.
+     * @throws InvalidSessionIDException
+     */
+    @Override
+    public ArrayList<PaymentRequest> getPaymentRequests(String sessionID) throws InvalidSessionIDException {
+        int user_id = getUserID(sessionID);
+        ArrayList<PaymentRequest> paymentRequests = customORM.getPaymentRequests(user_id);
+        return paymentRequests;
+    }
+
+    /**
+     * Method used to create a new payment request for a user.
+     *
+     * @param sessionID             The sessionID of the user.
+     * @param description           The description of the to be created payment request.
+     * @param due_date              The due date of the to be created payment request.
+     * @param amount                The amount of the to be created payment request.
+     * @param number_of_requests    The number of requests of the to be created payment request.
+     * @return  The newly created payment request.
+     * @throws InvalidSessionIDException
+     */
+    @Override
+    public PaymentRequest postPaymentRequest(String sessionID, String description, String due_date, float amount, long number_of_requests) throws InvalidSessionIDException {
+        int user_id = getUserID(sessionID);
+        PaymentRequest paymentRequest = null;
+        try {
+            connection.setAutoCommit(false);
+            customORM.increaseHighestPaymentRequestID(user_id);
+            long paymentRequestID = customORM.getHighestPaymentRequestID(user_id);
+            connection.commit();
+            connection.setAutoCommit(true);
+            customORM.createPaymentRequest(user_id, paymentRequestID, description, due_date, amount, number_of_requests);
+
+            paymentRequest = new PaymentRequest(paymentRequestID, description, due_date, amount, number_of_requests, false, new ArrayList<>());
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return paymentRequest;
     }
 }
