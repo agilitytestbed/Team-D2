@@ -228,4 +228,7 @@ public interface Model {
      */
     Session getSession();
 
+    ArrayList<PaymentRequest> getPaymentRequests(String sessionID) throws InvalidSessionIDException;
+
+    PaymentRequest postPaymentRequest(String sessionID, String description, String due_date, float amount, long number_of_requests) throws InvalidSessionIDException;
 }

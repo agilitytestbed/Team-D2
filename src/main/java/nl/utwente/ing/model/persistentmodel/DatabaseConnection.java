@@ -54,6 +54,7 @@ public class DatabaseConnection {
                             "  highest_category_id BIGINT\n," +
                             "  highest_saving_goal_id BIGINT,\n" +
                             "  highest_category_rule_id BIGINT,\n" +
+                            "  highest_payment_request_id BIGINT,\n" +
                             "  system_time_millis BIGINT\n" +
                             ");"
             );
@@ -120,12 +121,36 @@ public class DatabaseConnection {
                             "  user_id INTEGER,\n" +
                             "  saving_goal_id BIGINT,\n" +
                             "  name TEXT,\n" +
-                            "  goal float ,\n" +
-                            "  save_per_month float ,\n" +
-                            "  min_balance_required float ,\n" +
-                            "  balance float ,\n" +
+                            "  goal float,\n" +
+                            "  save_per_month float,\n" +
+                            "  min_balance_required float,\n" +
+                            "  balance float,\n" +
                             "  FOREIGN KEY(user_id) REFERENCES User_Table(user_id),\n" +
                             "  PRIMARY KEY(user_id, saving_goal_id)\n" +
+                            ");"
+            );
+            statement.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS PaymentRequest_Table(\n" +
+                            "  user_id INTEGER,\n" +
+                            "  payment_request_id BIGINT,\n" +
+                            "  description TEXT,\n" +
+                            "  due_date TEXT ,\n" +
+                            "  amount float ,\n" +
+                            "  number_of_requests BIGINT ,\n" +
+                            "  filled BOOLEAN ,\n" +
+                            "  FOREIGN KEY(user_id) REFERENCES User_Table(user_id),\n" +
+                            "  PRIMARY KEY(user_id, payment_request_id)\n" +
+                            ");"
+            );
+            statement.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS PaymentRequest_Transaction(\n" +
+                            "  user_id INTEGER,\n" +
+                            "  transaction_id BIGINT,\n" +
+                            "  payment_request_id BIGINT,\n" +
+                            "  FOREIGN KEY(user_id) REFERENCES User_Table(user_id),\n" +
+                            "  FOREIGN KEY(transaction_id) REFERENCES Transaction_Table(transaction_id),\n" +
+                            "  FOREIGN KEY(payment_request_id) REFERENCES PaymentRequest_Table(payment_request_id),\n" +
+                            "  PRIMARY KEY(user_id, payment_request_id, transaction_id)\n" +
                             ");"
             );
             statement.close();
