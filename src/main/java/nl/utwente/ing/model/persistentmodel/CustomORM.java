@@ -141,8 +141,8 @@ public class CustomORM {
                     "AND t.user_id = ?\n" +
                     "AND t.transaction_id = ?;";
     private static final String CREATE_NEW_USER =
-            "INSERT INTO User_Table (session_id, highest_transaction_id, highest_category_id, highest_saving_goal_id, highest_category_rule_id, highest_payment_request_id,  system_time_millis)\n" +
-                    "VALUES (?, 0, 0, 0, 0, 0, 0);";
+            "INSERT INTO User_Table (session_id, highest_transaction_id, highest_category_id, highest_saving_goal_id, highest_category_rule_id, highest_payment_request_id, all_time_high, system_time_millis)\n" +
+                    "VALUES (?, 0, 0, 0, 0, 0, 0, 0);";
     private static final String GET_USER_ID =
             "SELECT user_id\n" +
                     "FROM User_Table\n" +
@@ -303,6 +303,27 @@ public class CustomORM {
                     "FROM PaymentRequest_Table\n" +
                     "WHERE user_id = ?\n" +
                     "AND filled = ?;";
+    private static final String GET_ALL_UNREAD_MESSAGES =
+            "SELECT message_id, message, date, read, type\n" +
+                    "FROM Message_Table\n" +
+                    "WHERE user_id = ?\n" +
+                    "AND read = ?;";
+    private static final String GET_ALL_TIME_HIGH =
+            "SELECT all_time_high\n" +
+                    "FROM User_Table\n" +
+                    "WHERE user_id = ?;";
+    private static final String SET_NEW_ALL_TIME_HIGH =
+            "UPDATE User_Table\n" +
+                    "SET all_time_high = ?\n" +
+                    "WHERE user_id = ?;";
+    private static final String SET_MESSAGE_TO_READ =
+            "UPDATE Message_Table\n" +
+                    "SET read = ?\n" +
+                    "WHERE user_id = ?\n" +
+                    "AND message_id = ?;";
+    private static final String CREATE_MESSAGE =
+            "INSERT INTO Message_Table (user_id, message_id, message, date, read, type)\n" +
+                    "VALUES (?, ?, ?, ?, ?, ?);";
 
 
     /**
@@ -1618,6 +1639,79 @@ public class CustomORM {
             statement.setBoolean(1, filled);
             statement.setInt(2, userID);
             statement.setLong(3, paymentRequestID);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void createMessage(int userID, String message, String date, boolean read, String type) {
+        try {
+            PreparedStatement statement = connection.prepareStatement(CREATE_MESSAGE);
+            statement.setInt(1, userID);
+            statement.setString(2, message);
+            statement.setString(3, date);
+            statement.setBoolean(4, read);
+            statement.setString(5, type);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void setMessageToRead(int userID, long messageIDLong) {
+        try {
+            PreparedStatement statement = connection.prepareStatement(SET_MESSAGE_TO_READ);
+            statement.setBoolean(1, true);
+            statement.setInt(2, userID);
+            statement.setLong(3, messageIDLong);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public ArrayList<Message> getUnreadMessages(int userID) {
+        ArrayList<Message> messages = new ArrayList<>();
+
+        try {
+            PreparedStatement statement = connection.prepareStatement(GET_ALL_UNREAD_MESSAGES);
+            statement.setInt(1, userID);
+            statement.setBoolean(2, false);
+            ResultSet resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                long messageID = resultSet.getLong(1);
+                String message = resultSet.getString(2);
+                String date = resultSet.getString(3);
+                boolean read = resultSet.getBoolean(4);
+                String type = resultSet.getString(5);
+                messages.add(new Message(messageID, message, date, read, type));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return messages;
+    }
+
+    public float getAllTimeHigh(int userID) {
+        float allTimeHigh = 0;
+        try {
+            PreparedStatement statement = connection.prepareStatement(GET_ALL_TIME_HIGH);
+            statement.setInt(1, userID);
+            ResultSet rs = statement.executeQuery();
+            allTimeHigh = rs.getLong(1);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return allTimeHigh;
+    }
+
+    public void setNewAllTimeHigh(int userID, float newHigh) {
+        try {
+            PreparedStatement statement = connection.prepareStatement(SET_NEW_ALL_TIME_HIGH);
+            statement.setFloat(1, newHigh);
+            statement.setInt(2, userID);
             statement.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();

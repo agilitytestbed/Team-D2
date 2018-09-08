@@ -24,6 +24,7 @@ import java.util.Map;
 public class MainRestController {
 
     private Model model;
+    private SimpleDateFormat dateFormat;
 
     /**
      * The constructor of MainRestController.
@@ -31,6 +32,8 @@ public class MainRestController {
      */
     public MainRestController() {
         model = new PersistentModel();
+        this.dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+        dateFormat.setLenient(false);
     }
 
     /**
@@ -115,8 +118,6 @@ public class MainRestController {
             return ResponseEntity.status(405).body("Invalid input given (type should be 'deposit' or 'withdrawal')");
         }
         try {
-            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
-            dateFormat.setLenient(false);
             dateFormat.parse(t.getDate().trim());
         } catch (ParseException e) {
             return ResponseEntity.status(405).body("Invalid input given (date format should be: \"yyyy-MM-dd'T'HH:mm:ss.SSSZ\")");
@@ -189,8 +190,6 @@ public class MainRestController {
         }
         if (!t.getDate().equals("") && !t.getDate().equals(null)) {
             try {
-                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
-                dateFormat.setLenient(false);
                 dateFormat.parse(t.getDate().trim());
             } catch (ParseException e) {
                 return ResponseEntity.status(405).body("Invalid input given (date format should be: \"yyyy-MM-dd'T'HH:mm:ss.SSSZ\")");
@@ -717,6 +716,11 @@ public class MainRestController {
         if (p == null || p.getTransactions().size() > 0 || p.getNumber_of_requests() <= 0 || p.isFilled() || p.getAmount() <= 0 || p.getDescription() == null || p.getDue_date() == null) {
             return ResponseEntity.status(405).body("Invalid input given");
         }
+        try {
+            dateFormat.parse(p.getDue_date().trim());
+        } catch (ParseException e) {
+            return ResponseEntity.status(405).body("Invalid input given (date format should be: \"yyyy-MM-dd'T'HH:mm:ss.SSSZ\")");
+        }
 
         try {
             String sessionID = this.getSessionID(pSessionID, hSessionID);
@@ -724,6 +728,35 @@ public class MainRestController {
             return ResponseEntity.status(201).body(paymentRequest);
         } catch (InvalidSessionIDException e) {
             return ResponseEntity.status(401).body("Session ID is missing or invalid");
+        }
+    }
+
+    @RequestMapping(method = RequestMethod.GET, value = RestControllerConstants.URI_PREFIX + "/messages")
+    public ResponseEntity getMessages(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
+                                             @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID) {
+        try {
+            String sessionID = this.getSessionID(pSessionID, hSessionID);
+            ArrayList<Message> messages = model.getMessages(sessionID);
+            return ResponseEntity.status(200).body(messages);
+        } catch (InvalidSessionIDException e) {
+            return ResponseEntity.status(401).body("Session ID is missing or invalid");
+        }
+    }
+
+    @RequestMapping(method = RequestMethod.PUT,
+            value = RestControllerConstants.URI_PREFIX + "/messages/{messageId}")
+    public ResponseEntity putMessage(@RequestParam(value = "session_id", defaultValue = "") String pSessionID,
+                                          @RequestHeader(value = "X-session-ID", defaultValue = "") String hSessionID,
+                                          @PathVariable String messageId) {
+        try {
+            String sessionID = this.getSessionID(pSessionID, hSessionID);
+            long messageIDLong = Long.parseLong(messageId);
+            model.setMessageToRead(sessionID, messageIDLong);
+            return ResponseEntity.status(200).body("Successful operation");
+        } catch (InvalidSessionIDException e) {
+            return ResponseEntity.status(401).body("Session ID is missing or invalid");
+        } catch (NumberFormatException | ResourceNotFoundException e) {
+            return ResponseEntity.status(404).body("Resource not found");
         }
     }
 

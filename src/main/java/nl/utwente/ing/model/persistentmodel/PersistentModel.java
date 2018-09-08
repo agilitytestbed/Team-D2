@@ -7,6 +7,7 @@ import nl.utwente.ing.model.bean.*;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
@@ -88,6 +89,21 @@ public class PersistentModel implements Model {
         long previousTimeMillis = customORM.getCurrentTimeMillis(userID);
         if (previousTimeMillis < transactionTimestampMillis) {
             updateSavingGoals(userID, transactionTimestampMillis, previousTimeMillis, externalIBAN);
+
+            checkPaymentRequestsForDueDate(userID, date, transactionTimestampMillis, dateFormat);
+
+            float previousClose = customORM.getPreviousBalanceHistoryPointClose(userID, transactionTimestampMillis);
+            if (type.equals("withdrawal") && previousClose >= 0 && previousClose - amount < 0) {
+                customORM.createMessage(userID, "Balance dropped below zero, namely to " + (previousClose - amount), date, false, "WARNING");
+            } else {
+                float allTimeHigh = customORM.getAllTimeHigh(userID);
+                if (previousClose + amount > allTimeHigh) {
+                    customORM.setNewAllTimeHigh(userID, previousClose + amount);
+                    if (newAllTimeHighMessageShouldBeSent(userID, transactionTimestampMillis, dateFormat)) {
+                        customORM.createMessage(userID, "NEW ALL TIME HIGH BALANCE OF: " + (previousClose + amount) + "!", date, false, "INFO");
+                    }
+                }
+            }
         }
 
         try {
@@ -114,7 +130,7 @@ public class PersistentModel implements Model {
             }
 
             if (previousTimeMillis < transactionTimestampMillis && type.equals("deposit")) {
-                updatePaymentRequests(userID, amount, transactionID);
+                updatePaymentRequests(userID, amount, transactionID, date);
 
             }
 
@@ -127,6 +143,51 @@ public class PersistentModel implements Model {
         return transaction;
     }
 
+    private boolean newAllTimeHighMessageShouldBeSent(int userID, long transactionTimestampMillis, SimpleDateFormat dateFormat) {
+        boolean newAllTimeHighMessageShouldBeSent = true;
+
+        ArrayList<Message> unreadMessages = customORM.getUnreadMessages(userID);
+        for (Message m : unreadMessages) {
+            if (m.getMessage().startsWith("NEW ALL TIME HIGH BALANCE OF: ")) {
+                newAllTimeHighMessageShouldBeSent = false;
+                break;
+            }
+        }
+
+        if (newAllTimeHighMessageShouldBeSent && customORM.getHighestTransactionID(userID) >= 1) {
+            String firstTransactionDate = customORM.getTransaction(userID, 1).getDate();
+            try {
+                long firstTransactionTimestampMillis = dateFormat.parse(firstTransactionDate.trim()).getTime();
+                GregorianCalendar calendar = new GregorianCalendar();
+                calendar.setTimeInMillis(firstTransactionTimestampMillis);
+                calendar.add(Calendar.MONTH, 3);
+                if (calendar.getTimeInMillis() > transactionTimestampMillis) {
+                    newAllTimeHighMessageShouldBeSent = false;
+                }
+            } catch (ParseException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return newAllTimeHighMessageShouldBeSent;
+    }
+
+    private void checkPaymentRequestsForDueDate(int userID, String date, long currentTimeMillis, SimpleDateFormat dateFormat) {
+        ArrayList<PaymentRequest> openPaymentRequests = customORM.getOpenPaymentRequests(userID);
+        for (PaymentRequest p :  openPaymentRequests) {
+            long dueDateMillis;
+            try {
+                dueDateMillis = dateFormat.parse(p.getDue_date().trim()).getTime();
+                if (dueDateMillis <= currentTimeMillis) {
+                    customORM.createMessage(userID, "Payment request " + p.getDescription() + " has not been filled in time.", date, false, "WARNING");
+                }
+            } catch (ParseException e) {
+                e.printStackTrace();
+            }
+
+        }
+    }
+
     /**
      * Method used to update the payment requests when a transaction comes in.
      *
@@ -134,13 +195,14 @@ public class PersistentModel implements Model {
      * @param amount        The amount of the transaction.
      * @param transactionID The ID of the transaction.
      */
-    private void updatePaymentRequests(int user_id, float amount, long transactionID) {
+    private void updatePaymentRequests(int user_id, float amount, long transactionID, String date) {
         ArrayList<PaymentRequest> paymentRequests = customORM.getOpenPaymentRequests(user_id);
         for (PaymentRequest p : paymentRequests) {
             if (p.getAmount() == amount) {
                 customORM.linkTransactionToPaymentRequest(user_id, transactionID, p.getId());
                 if (customORM.paymentRequestIsFilled(user_id, p.getId())) {
                     customORM.updatePaymentRequestFilled(user_id, p.getId(), true);
+                    customORM.createMessage(user_id, "Payment request " + p.getDescription() + " has been filled.", date, false, "INFO");
                 }
                 break;
             }
@@ -217,6 +279,9 @@ public class PersistentModel implements Model {
                             float newBalance = s.getBalance() + amount;
                             s.setBalance(newBalance);
                             customORM.updateSavingGoalBalance(userID, s.getId(), newBalance);
+                            if (s.getBalance() >= s.getGoal()) {
+                                customORM.createMessage(userID, "Saving goal " + s.getName() + " has been reached.", date, false, "INFO");
+                            }
                         } catch (SQLException e) {
                             e.printStackTrace();
                         }
@@ -915,4 +980,16 @@ public class PersistentModel implements Model {
         }
         return paymentRequest;
     }
+
+    public ArrayList<Message> getMessages(String sessionID) throws InvalidSessionIDException{
+        int user_id = getUserID(sessionID);
+        ArrayList<Message> messages = customORM.getUnreadMessages(user_id);
+        return messages;
+    }
+
+    public void setMessageToRead(String sessionID, long messageIDLong) throws ResourceNotFoundException, InvalidSessionIDException{
+        int user_id = getUserID(sessionID);
+        customORM.setMessageToRead(user_id, messageIDLong);
+    }
+
 }
