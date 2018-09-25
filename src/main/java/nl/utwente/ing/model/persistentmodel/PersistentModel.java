@@ -7,7 +7,6 @@ import nl.utwente.ing.model.bean.*;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
@@ -94,13 +93,31 @@ public class PersistentModel implements Model {
 
             float previousClose = customORM.getPreviousBalanceHistoryPointClose(userID, transactionTimestampMillis);
             if (type.equals("withdrawal") && previousClose >= 0 && previousClose - amount < 0) {
-                customORM.createMessage(userID, "Balance dropped below zero, namely to " + (previousClose - amount), date, false, "WARNING");
+                try {
+                    connection.setAutoCommit(false);
+                    customORM.increaseHighestMessageID(userID);
+                    long messageID = customORM.getHighestMessageID(userID);
+                    connection.commit();
+                    connection.setAutoCommit(true);
+                    customORM.createMessage(userID, messageID, "Balance dropped below zero, namely to " + (previousClose - amount), date, false, "WARNING");
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
             } else {
                 float allTimeHigh = customORM.getAllTimeHigh(userID);
                 if (previousClose + amount > allTimeHigh) {
                     customORM.setNewAllTimeHigh(userID, previousClose + amount);
                     if (newAllTimeHighMessageShouldBeSent(userID, transactionTimestampMillis, dateFormat)) {
-                        customORM.createMessage(userID, "NEW ALL TIME HIGH BALANCE OF: " + (previousClose + amount) + "!", date, false, "INFO");
+                        try {
+                            connection.setAutoCommit(false);
+                            customORM.increaseHighestMessageID(userID);
+                            long messageID = customORM.getHighestMessageID(userID);
+                            connection.commit();
+                            connection.setAutoCommit(true);
+                            customORM.createMessage(userID, messageID, "NEW ALL TIME HIGH BALANCE OF: " + (previousClose + amount) + "!", date, false, "INFO");
+                        } catch (SQLException e) {
+                            e.printStackTrace();
+                        }
                     }
                 }
             }
@@ -154,13 +171,17 @@ public class PersistentModel implements Model {
             }
         }
 
+        System.out.println("reached " + newAllTimeHighMessageShouldBeSent);
         if (newAllTimeHighMessageShouldBeSent && customORM.getHighestTransactionID(userID) >= 1) {
             String firstTransactionDate = customORM.getTransaction(userID, 1).getDate();
+            System.out.println(firstTransactionDate);
             try {
                 long firstTransactionTimestampMillis = dateFormat.parse(firstTransactionDate.trim()).getTime();
                 GregorianCalendar calendar = new GregorianCalendar();
                 calendar.setTimeInMillis(firstTransactionTimestampMillis);
                 calendar.add(Calendar.MONTH, 3);
+                System.out.println(calendar.getTimeInMillis());
+                System.out.println(transactionTimestampMillis + "   transactiontimestamp ");
                 if (calendar.getTimeInMillis() > transactionTimestampMillis) {
                     newAllTimeHighMessageShouldBeSent = false;
                 }
@@ -168,18 +189,28 @@ public class PersistentModel implements Model {
                 e.printStackTrace();
             }
         }
+        // goes wrong with savinggoal message tes, but good with balancebelow zero message test ??
 
         return newAllTimeHighMessageShouldBeSent;
     }
 
     private void checkPaymentRequestsForDueDate(int userID, String date, long currentTimeMillis, SimpleDateFormat dateFormat) {
         ArrayList<PaymentRequest> openPaymentRequests = customORM.getOpenPaymentRequests(userID);
-        for (PaymentRequest p :  openPaymentRequests) {
+        for (PaymentRequest p : openPaymentRequests) {
             long dueDateMillis;
             try {
                 dueDateMillis = dateFormat.parse(p.getDue_date().trim()).getTime();
                 if (dueDateMillis <= currentTimeMillis) {
-                    customORM.createMessage(userID, "Payment request " + p.getDescription() + " has not been filled in time.", date, false, "WARNING");
+                    try {
+                        connection.setAutoCommit(false);
+                        customORM.increaseHighestMessageID(userID);
+                        long messageID = customORM.getHighestMessageID(userID);
+                        connection.commit();
+                        connection.setAutoCommit(true);
+                        customORM.createMessage(userID, messageID, "Payment request " + p.getDescription() + " has not been filled in time.", date, false, "WARNING");
+                    } catch (SQLException e) {
+                        e.printStackTrace();
+                    }
                 }
             } catch (ParseException e) {
                 e.printStackTrace();
@@ -191,18 +222,29 @@ public class PersistentModel implements Model {
     /**
      * Method used to update the payment requests when a transaction comes in.
      *
-     * @param user_id       The ID of the user.
+     * @param userID        The ID of the user.
      * @param amount        The amount of the transaction.
      * @param transactionID The ID of the transaction.
      */
-    private void updatePaymentRequests(int user_id, float amount, long transactionID, String date) {
-        ArrayList<PaymentRequest> paymentRequests = customORM.getOpenPaymentRequests(user_id);
+    private void updatePaymentRequests(int userID, float amount, long transactionID, String date) {
+        ArrayList<PaymentRequest> paymentRequests = customORM.getOpenPaymentRequests(userID);
         for (PaymentRequest p : paymentRequests) {
             if (p.getAmount() == amount) {
-                customORM.linkTransactionToPaymentRequest(user_id, transactionID, p.getId());
-                if (customORM.paymentRequestIsFilled(user_id, p.getId())) {
-                    customORM.updatePaymentRequestFilled(user_id, p.getId(), true);
-                    customORM.createMessage(user_id, "Payment request " + p.getDescription() + " has been filled.", date, false, "INFO");
+                customORM.linkTransactionToPaymentRequest(userID, transactionID, p.getId());
+                if (customORM.paymentRequestIsFilled(userID, p.getId())) {
+                    customORM.updatePaymentRequestFilled(userID, p.getId(), true);
+                    try {
+                        connection.setAutoCommit(false);
+                        customORM.increaseHighestMessageID(userID);
+                        long messageID = customORM.getHighestMessageID(userID);
+                        connection.commit();
+                        connection.setAutoCommit(true);
+                        customORM.createMessage(userID, messageID, "Payment request " + p.getDescription() + " has been filled.", date, false, "INFO");
+                    } catch (SQLException e) {
+                        e.printStackTrace();
+                    }
+
+
                 }
                 break;
             }
@@ -280,7 +322,19 @@ public class PersistentModel implements Model {
                             s.setBalance(newBalance);
                             customORM.updateSavingGoalBalance(userID, s.getId(), newBalance);
                             if (s.getBalance() >= s.getGoal()) {
-                                customORM.createMessage(userID, "Saving goal " + s.getName() + " has been reached.", date, false, "INFO");
+
+                                try {
+                                    connection.setAutoCommit(false);
+                                    customORM.increaseHighestMessageID(userID);
+                                    long messageID = customORM.getHighestMessageID(userID);
+                                    connection.commit();
+                                    connection.setAutoCommit(true);
+                                    customORM.createMessage(userID, messageID, "Saving goal " + s.getName() + " has been reached.", date, false, "INFO");
+                               } catch (SQLException e) {
+                                    e.printStackTrace();
+                                }
+
+
                             }
                         } catch (SQLException e) {
                             e.printStackTrace();
@@ -940,8 +994,8 @@ public class PersistentModel implements Model {
     /**
      * Method used to retrieve all the payment requests of a user.
      *
-     * @param sessionID     The sessionID of the user.
-     * @return  A list of all the payment requests belonging to the specified user.
+     * @param sessionID The sessionID of the user.
+     * @return A list of all the payment requests belonging to the specified user.
      * @throws InvalidSessionIDException
      */
     @Override
@@ -954,12 +1008,12 @@ public class PersistentModel implements Model {
     /**
      * Method used to create a new payment request for a user.
      *
-     * @param sessionID             The sessionID of the user.
-     * @param description           The description of the to be created payment request.
-     * @param due_date              The due date of the to be created payment request.
-     * @param amount                The amount of the to be created payment request.
-     * @param number_of_requests    The number of requests of the to be created payment request.
-     * @return  The newly created payment request.
+     * @param sessionID          The sessionID of the user.
+     * @param description        The description of the to be created payment request.
+     * @param due_date           The due date of the to be created payment request.
+     * @param amount             The amount of the to be created payment request.
+     * @param number_of_requests The number of requests of the to be created payment request.
+     * @return The newly created payment request.
      * @throws InvalidSessionIDException
      */
     @Override
@@ -981,13 +1035,13 @@ public class PersistentModel implements Model {
         return paymentRequest;
     }
 
-    public ArrayList<Message> getMessages(String sessionID) throws InvalidSessionIDException{
+    public ArrayList<Message> getMessages(String sessionID) throws InvalidSessionIDException {
         int user_id = getUserID(sessionID);
         ArrayList<Message> messages = customORM.getUnreadMessages(user_id);
         return messages;
     }
 
-    public void setMessageToRead(String sessionID, long messageIDLong) throws ResourceNotFoundException, InvalidSessionIDException{
+    public void setMessageToRead(String sessionID, long messageIDLong) throws ResourceNotFoundException, InvalidSessionIDException {
         int user_id = getUserID(sessionID);
         customORM.setMessageToRead(user_id, messageIDLong);
     }

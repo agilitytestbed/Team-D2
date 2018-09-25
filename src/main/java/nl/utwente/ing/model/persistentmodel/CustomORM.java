@@ -141,8 +141,8 @@ public class CustomORM {
                     "AND t.user_id = ?\n" +
                     "AND t.transaction_id = ?;";
     private static final String CREATE_NEW_USER =
-            "INSERT INTO User_Table (session_id, highest_transaction_id, highest_category_id, highest_saving_goal_id, highest_category_rule_id, highest_payment_request_id, all_time_high, system_time_millis)\n" +
-                    "VALUES (?, 0, 0, 0, 0, 0, 0, 0);";
+            "INSERT INTO User_Table (session_id, highest_transaction_id, highest_category_id, highest_saving_goal_id, highest_category_rule_id, highest_payment_request_id, highest_message_id, all_time_high, system_time_millis)\n" +
+                    "VALUES (?, 0, 0, 0, 0, 0, 0, 0, 0);";
     private static final String GET_USER_ID =
             "SELECT user_id\n" +
                     "FROM User_Table\n" +
@@ -324,7 +324,14 @@ public class CustomORM {
     private static final String CREATE_MESSAGE =
             "INSERT INTO Message_Table (user_id, message_id, message, date, read, type)\n" +
                     "VALUES (?, ?, ?, ?, ?, ?);";
-
+    private static final String INCREASE_HIGHEST_MESSAGE_ID =
+            "UPDATE User_Table\n" +
+                    "SET highest_message_id = highest_message_id + 1\n" +
+                    "WHERE user_id = ?;";
+    private static final String GET_HIGHEST_MESSAGE_ID =
+            "SELECT highest_message_id\n" +
+                    "FROM User_Table\n" +
+                    "WHERE user_id = ?;";
 
     /**
      * The constructor of CustomORM.
@@ -1645,14 +1652,15 @@ public class CustomORM {
         }
     }
 
-    public void createMessage(int userID, String message, String date, boolean read, String type) {
+    public void createMessage(int userID, Long messageID, String message, String date, boolean read, String type) {
         try {
             PreparedStatement statement = connection.prepareStatement(CREATE_MESSAGE);
             statement.setInt(1, userID);
-            statement.setString(2, message);
-            statement.setString(3, date);
-            statement.setBoolean(4, read);
-            statement.setString(5, type);
+            statement.setLong(2, messageID);
+            statement.setString(3, message);
+            statement.setString(4, date);
+            statement.setBoolean(5, read);
+            statement.setString(6, type);
             statement.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();
@@ -1716,5 +1724,28 @@ public class CustomORM {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+    }
+
+    public void increaseHighestMessageID(int userID) {
+        try {
+            PreparedStatement statement = connection.prepareStatement(INCREASE_HIGHEST_MESSAGE_ID);
+            statement.setInt(1, userID);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public long getHighestMessageID(int userID) {
+        long highestMessageID = -1;
+        try {
+            PreparedStatement statement = connection.prepareStatement(GET_HIGHEST_MESSAGE_ID);
+            statement.setInt(1, userID);
+            ResultSet rs = statement.executeQuery();
+            highestMessageID = rs.getLong(1);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return highestMessageID;
     }
 }

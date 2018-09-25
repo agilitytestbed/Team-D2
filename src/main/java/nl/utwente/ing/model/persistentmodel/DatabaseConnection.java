@@ -55,6 +55,7 @@ public class DatabaseConnection {
                             "  highest_saving_goal_id BIGINT,\n" +
                             "  highest_category_rule_id BIGINT,\n" +
                             "  highest_payment_request_id BIGINT,\n" +
+                            "  highest_message_id BIGINT,\n" +
                             "  all_time_high FLOAT,\n" +
                             "  system_time_millis BIGINT\n" +
                             ");"
